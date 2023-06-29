@@ -1,8 +1,7 @@
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d")
-let imgs = [];
-let oimgs = [];
-let cimgs = [];
+let imageSet = [];
+
 let imagesDiv = document.getElementById("images");
 
 imagesDiv.addEventListener("mousedown", function (e) {
@@ -25,7 +24,7 @@ function handleImages(e) {
     for (let i = 0; i < files.length; i++) {
         let img = new Image();
         img.onload = function () {
-            imgs.push(img);
+            imageSet.push({img: img, originalData: null, laplacianOfGaussianData: null});
             refreshImages();
         }
         img.src = URL.createObjectURL(files[i]);
@@ -34,14 +33,12 @@ function handleImages(e) {
 
 function refreshImages() {
     imagesDiv.innerHTML = "";
-    cimgs = [];
-    oimgs = [];
-    for (let i = 0; i < imgs.length; i++) {
-        let originalWidth = imgs[i].width;
-        let originalHeight = imgs[i].height;
+    for (let image of imageSet) {
+        let originalWidth = image.img.width;
+        let originalHeight = image.img.height;
         let ratio = originalWidth / originalHeight;
         let img = document.createElement("img");
-        img.src = imgs[i].src;
+        img.src = image.img.src;
         let newWidth = originalWidth;
         let newHeight = newWidth / ratio;
         let imgStyleWidth = 400;
@@ -53,42 +50,44 @@ function refreshImages() {
         let tempCtx = tempCanvas.getContext("2d");
         tempCanvas.width = newWidth;
         tempCanvas.height = newHeight;
-        tempCtx.drawImage(imgs[i], 0, 0, newWidth, newHeight);
+        tempCtx.drawImage(image.img, 0, 0, newWidth, newHeight);
         let imageData = tempCtx.getImageData(0, 0, newWidth, newHeight);
-        cimgs.push(convolution(imageData, laplacianOfGaussianKernel(15, 1.0)));
+        image.laplacianOfGaussianData = convolution(imageData, laplacianOfGaussianKernel(15, 1.0));
         tempCanvas.width = originalWidth;
         tempCanvas.height = originalHeight;
-        tempCtx.drawImage(imgs[i], 0, 0, originalWidth, originalHeight);
-        oimgs.push(tempCtx.getImageData(0, 0, originalWidth, originalHeight));
+        tempCtx.drawImage(image.img, 0, 0, originalWidth, originalHeight);
+        image.originalData = tempCtx.getImageData(0, 0, originalWidth, originalHeight);
         img.onclick = function () {
             canvas.width = newWidth;
             canvas.height = newHeight;
-            ctx.putImageData(cimgs[i], 0, 0);
+            ctx.putImageData(image.laplacianOfGaussianData, 0, 0);
         }
     }
 }
 
 function focusWeight(s) {
     let weights = [];
-    if (cimgs.length === 0)
+    if (imageSet.length === 0)
         return;
-    for (let i = 0; i < cimgs[0].width; i++) {
+    let dataWidth = imageSet[0].laplacianOfGaussianData.width;
+    let dataHeight = imageSet[0].laplacianOfGaussianData.height;
+    for (let i = 0; i < dataWidth; i++) {
         weights[i] = [];
-        for (let j = 0; j < cimgs[0].height; j++) {
+        for (let j = 0; j < dataHeight; j++) {
             weights[i][j] = [];
-            for (let w = 0; w < cimgs.length; w++) {
+            for (let w = 0; w < imageSet.length; w++) {
                 weights[i][j][w] = 0;
             }
         }
     }
-    for (let x = 0; x < cimgs[0].width; x++) {
-        for (let y = 0; y < cimgs[0].height; y++) {
+    for (let x = 0; x < dataWidth; x++) {
+        for (let y = 0; y < dataHeight; y++) {
             let sum = 0;
-            for (let i = 0; i < cimgs.length; i++) {
-                let data = cimgs[i].data;
+            for (let i = 0; i < imageSet.length; i++) {
+                let data = imageSet[i].laplacianOfGaussianData.data;
                 let allChannels = 0;
                 for (let j = 0; j < 3; j++) {
-                    allChannels += data[(y * cimgs[i].width + x) * 4 + j] / (255 * 3);
+                    allChannels += data[(y * dataWidth + x) * 4 + j] / (255 * 3);
                 }
                 weights[x][y][i] += Math.pow(allChannels, 8);
                 sum += weights[x][y][i];
@@ -96,7 +95,7 @@ function focusWeight(s) {
             if (sum === 0) {
                 weights[x][y][0] = 1.0;
             } else {
-                for (let i = 0; i < cimgs.length; i++) {
+                for (let i = 0; i < imageSet.length; i++) {
                     weights[x][y][i] /= sum;
                 }
             }
@@ -106,15 +105,18 @@ function focusWeight(s) {
     return weights;
 }
 
-function mixWithWeights(inputs, weights, x, y) {
+function mixWithWeights(weights, x, y) {
     let result = [];
     for (let i = 0; i < 3; i++)
         result[i] = 0;
     result[3] = 255;
-    for (let i = 0; i < inputs.length; i++) {
+    for (let i = 0; i < imageSet.length; i++) {
+        const imageWidth = imageSet[i].originalData.width;
+        const originalData = imageSet[i].originalData.data;
+        const weightsForImage = weights[i];
         for (let j = 0; j < 3; j++) {
-            let v = inputs[i].data[(y * inputs[i].width + x) * 4 + j];
-            let w = weights[i];
+            const v = originalData[(y * imageWidth + x) * 4 + j];
+            const w = weightsForImage;
             result[j] += (v * w) | 0;
         }
             
@@ -125,10 +127,10 @@ function mixWithWeights(inputs, weights, x, y) {
 function drawStacked() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (imgs.length === 0 || cimgs.length === 0 || oimgs.length === 0)
+    if (imageSet.length === 0)
         return;
-    canvas.width = imgs[0].width;
-    canvas.height = imgs[0].height;
+    canvas.width = imageSet[0].img.width;
+    canvas.height = imageSet[0].img.height;
     let imageData = ctx.createImageData(canvas.width, canvas.height);
     let weights = focusWeight(0.05);
     setTimeout(() => drawStackedChunk(imageData, weights, 0, Math.max(1, (canvas.width / 100) | 0)), 0);
@@ -141,7 +143,7 @@ function drawStackedChunk(imageData, weights, x1, x2) {
         for (let y = 0; y < canvas.height; y++) {
             let yScaled = (weights[xScaled].length * y / canvas.height) | 0;
             let currentWeights = weights[xScaled][yScaled];
-            let mixed = mixWithWeights(oimgs, currentWeights, x, y);
+            let mixed = mixWithWeights(currentWeights, x, y);
             for (let k = 0; k < 4; k++)
                 data[(y * canvas.width + x) * 4 + k] = mixed[k];
         }
