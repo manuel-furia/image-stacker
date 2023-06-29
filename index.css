@@ -1,0 +1,35 @@
+body {
+    background-color: #000000;
+    font-family: 'Roboto', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+canvas {
+    max-width: 80vw;
+    width: 80vw;
+    min-width: 80vh;
+    min-height: 10vh;
+    margin: 0 auto;
+    display: block;
+    background-color: #425060;
+}
+
+#images {
+    background-color: #212529;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    margin: 8px auto;
+    max-width: 80vw;
+    min-width: 80vh;
+    min-height: 10vh;
+}
