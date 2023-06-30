@@ -22,6 +22,19 @@ canvas {
     background-color: #425060;
 }
 
+#stereoImages {
+    display: flex;
+    justify-content: center;
+}
+
+#leftImage, #rightImage {
+    max-width: 40vw;
+    width: 40vw;
+    min-height: 20vh;
+    border: 1px solid #000000;
+    margin: 0;
+}
+
 #images {
     background-color: #212529;
     display: flex;
