@@ -9,12 +9,10 @@ let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
     stackDepth: 1,
-    smoothWindow: 0,
-    smoothThreshold: 0.0,
     depthFactor: 60.0,
     depthSmooth: 8.0,
     depthStart: 0.5,
-    invertDepth: false
+    invertDepth: false,
 }
 
 imagesDiv.addEventListener("mousedown", function (e) {
@@ -113,46 +111,18 @@ function differenceOfGaussian(imageData, s1, s2) {
     tempCtx.drawImage(imageCanvas, 0, 0, originalWidth, originalHeight);
     let imageData2 = tempCtx.getImageData(0, 0, originalWidth, originalHeight);
     let result = ctx.createImageData(originalWidth, originalHeight);
-    let smoothResult = ctx.createImageData(originalWidth, originalHeight);
     let data1 = imageData1.data;
     let data2 = imageData2.data;
     let resultData = result.data;
-    let sum = 0;
     for (let i = 0; i < originalHeight; i++) {
         for (let j = 0; j < originalWidth; j++) {
             for (let k = 0; k < 3; k++) {
                 resultData[(i * originalWidth + j) * 4 + k] = Math.abs(data1[(i * originalWidth + j) * 4 + k] - data2[(i * originalWidth + j) * 4 + k]);
-                sum += resultData[(i * originalWidth + j) * 4 + k];
             }
             resultData[(i * originalWidth + j) * 4 + 3] = 255;
         }
     }
-    let avg = sum / (originalWidth * originalHeight * 3);
-    let absoluteThreshold = (avg * stackingSettings.smoothThreshold) | 0;
-    let windowArea = (2 * stackingSettings.smoothWindow + 1) * (2 * stackingSettings.smoothWindow + 1);
-    let smoothResultData = smoothResult.data;
-    for (let i = 0; i < originalHeight; i++) {
-        for (let j = 0; j < originalWidth; j++) {
-            for (let k = 0; k < 3; k++) {
-                let intensity = 0;
-                smoothResultData[(i * originalWidth + j) * 4 + k] = 0;
-                for (let x = -stackingSettings.smoothWindow; x <= stackingSettings.smoothWindow; x++) {
-                    for (let y = -stackingSettings.smoothWindow; y <= stackingSettings.smoothWindow; y++) {
-                        let u = i + x;
-                        let v = j + y;
-                        if (u >= 0 && u < originalHeight && v >= 0 && v < originalWidth) {
-                            if (resultData[(u * originalWidth + v) * 4 + k] > absoluteThreshold) {
-                                intensity += resultData[(u * originalWidth + v) * 4 + k];
-                            }
-                        }
-                    }
-                }
-                smoothResultData[(i * originalWidth + j) * 4 + k] = intensity / windowArea;
-            }
-            smoothResultData[(i * originalWidth + j) * 4 + 3] = 255;
-        }
-    }
-    return smoothResult;
+    return result;
 }
 
 function initializeDepths(w, h) {
@@ -366,48 +336,4 @@ function drawStatus(text) {
 
 function LoG(x, y, s) {
     return -1 / (Math.PI * Math.pow(s, 4)) * (1 - (x * x + y * y) / (2 * s * s)) * Math.exp(-(x * x + y * y) / (2 * s * s));
-}
-
-function laplacianOfGaussianKernel(n, s) {
-    let kernel = [];
-    for (let i = 0; i < n; i++) {
-        kernel[i] = [];
-        for (let j = 0; j < n; j++) {
-            kernel[i][j] = LoG(i - (n - 1) / 2, j - (n - 1) / 2, s);
-        }
-    }
-    return kernel;
-    
-}
-
-function convolution(imgData, kernel) {
-    let n = kernel.length;
-    let m = kernel[0].length;
-    let data = imgData.data;
-    let width = imgData.width;
-    let height = imgData.height;
-    let result = ctx.createImageData(width, height);
-    let resultData = result.data;
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < width; j++)
-            for (let k = 0; k < 4; k++)
-                resultData[(i * width + j) * 4 + k] = 0;
-    }
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < width; j++) {
-            for (let k = 0; k < 3; k++) {
-                let sum = 0;
-                for (let u = 0; u < n; u++)
-                    for (let v = 0; v < m; v++) {
-                        let x = i + u - (n - 1) / 2;
-                        let y = j + v - (m - 1) / 2;
-                        if (x >= 0 && x < height && y >= 0 && y < width)
-                            sum += data[(x * width + y) * 4 + k] * kernel[u][v];
-                    }
-                resultData[(i * width + j) * 4 + k] = Math.abs(sum);
-            }
-            resultData[(i * width + j) * 4 + 3] = data[(i * width + j) * 4 + 3];
-        }
-    }
-    return result;
 }
