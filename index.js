@@ -43,6 +43,7 @@ function handleImages(e) {
             addImage({
                 name: files[i].name,
                 img: img,
+                imgContainer: null,
                 originalData: null,
                 differenceOfGaussianStack: null,
                 statusText: null});
@@ -57,6 +58,14 @@ function clearImages() {
     imagesDiv.innerHTML = "";
 }
 
+function removeImage(image) {
+    let index = stackingData.imageSet.indexOf(image);
+    if (index !== -1) {
+        stackingData.imageSet.splice(index, 1);
+        updateImagesDiv();
+    }
+}
+
 function addImage(image) {
     if (image.originalData !== null && image.differenceOfGaussianStack !== null) {
         return;
@@ -67,10 +76,17 @@ function addImage(image) {
     let ratio = originalWidth / originalHeight;
     let img = document.createElement("img");
     let text = document.createElement("p");
+    let removeButton = document.createElement("div");
     let container = document.createElement("div");
     container.classList.add("imgContainer");
     text.classList.add("statusText");
     text.innerHTML = "";
+    removeButton.classList.add("removeButton");
+    removeButton.innerHTML = "X";
+    removeButton.onclick = function () {
+        removeImage(image);
+    }
+    container.appendChild(removeButton);
     container.appendChild(img);
     container.appendChild(text);
     image.statusText = text;
@@ -81,8 +97,11 @@ function addImage(image) {
     let imgStyleHeight = imgStyleWidth / ratio;
     img.style.width = imgStyleWidth + "px";
     img.style.height = imgStyleHeight + "px";
-    imagesDiv.appendChild(container);
-    container.onclick = function () {
+    image.imgContainer = container;
+    container.onclick = function (e) {
+        if (e.target === removeButton) {
+            return;
+        }
         mainCanvas.width = newWidth;
         mainCanvas.height = newHeight;
         mainCanvasCtx.putImageData(differenceOfGaussian(image.originalData, stackingSettings.sigmaA, stackingSettings.sigmaB), 0, 0);
@@ -93,7 +112,19 @@ function addImage(image) {
     tempCanvas.height = originalHeight;
     tempCtx.drawImage(image.img, 0, 0, originalWidth, originalHeight);
     image.originalData = tempCtx.getImageData(0, 0, originalWidth, originalHeight);
-    stackingData.imageSet.sort((a, b) => a.name.localeCompare(b.name));
+    updateImagesDiv();
+}
+function updateImagesDiv() {
+    if (stackingSettings.invertDepth) {
+        stackingData.imageSet.sort((a, b) => b.name.localeCompare(a.name));
+    } else {
+        stackingData.imageSet.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    imagesDiv.innerHTML = "";
+    for (let i = 0; i < stackingData.imageSet.length; i++) {
+        stackingData.imageSet[i].statusText.innerHTML = i + 1;
+        imagesDiv.appendChild(stackingData.imageSet[i].imgContainer);
+    }
 }
 
 function differenceOfGaussian(imageData, s1, s2) {
@@ -145,7 +176,7 @@ function addDepth(x, y, indicesAndScores) {
     let depth = 0;
 
     for (let k = 0; k < 3; k++) {
-        depth += scores[k] * stackingSettings.invertDepth ? (stackingData.imageSet.length - indices[k]) : indices[k];
+        depth += scores[k] * indices[k];
     }
     if (depth > stackingData.maximumDepth) {
         stackingData.maximumDepth = depth;

@@ -49,14 +49,31 @@ canvas {
 
 .statusText {
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 10%;
+    left: 10%;
     transform: translate(-50%, -50%);
     color: #aaaaaa;
-    font-size: 5rem;
+    font-size: 36px;
     margin: 0 auto;
     padding: 0;
     display: block;
+}
+
+.removeButton {
+    position: absolute;
+    top: 10%;
+    right: 0%;
+    transform: translate(-50%, -50%);
+    color: darkred;
+    font-size: 36px;
+    line-height: 36px;
+    margin: 0 auto;
+    padding: 0;
+    display: block;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #212529;
+    text-align: center;
 }
 
 .imgContainer {
