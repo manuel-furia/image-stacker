@@ -20,18 +20,20 @@ let anaglyphSettings = {
         [0.0, 1.0, 0.0],
         [0.0, 0.0, 1.0]
     ],
-    leftGamma: 1.5,
+    leftGamma: 1.3,
     rightGamma: 1.0,
-    depthFactor: 60.0,
-    depthSmooth: 8.0,
-    depthStart: 0.5,
+    depthFactor: 20.0,
+    depthSmooth: 2.0,
+    depthStart: -1.0,
 }
 
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
     stackDepth: 1,
-    invertImages: true,
+    topBias: 0.0,
+    bottomBias: 0.0,
+    invertImages: false,
 }
 
 imagesDiv.addEventListener("mousedown", function (e) {
@@ -205,11 +207,13 @@ function pickBestImage(x, y) {
 
     for (let i = 0; i < imageSet.length; i++) {
         let weight = [0, 0, 0];
+        let bottomBias = (i === 0) ? (stackingSettings.bottomBias * 255) : 0;
+        let topBias = (i === imageSet.length - 1) ? (stackingSettings.topBias * 255) : 0;
         for (let j = 0; j < stackingSettings.stackDepth; j++) {
             let data = imageSet[i].differenceOfGaussianStack[j].data;
             let dataWidth = imageSet[i].differenceOfGaussianStack[j].width;
             for (let k = 0; k < 3; k++) {
-                weight[k] += Math.abs(data[(y * dataWidth + x) * 4 + j]);
+                weight[k] += Math.abs(data[(y * dataWidth + x) * 4 + j]) + bottomBias + topBias;
             }
         }
         for (let k = 0; k < 3; k++) {
@@ -243,9 +247,11 @@ function updateDifferenceOfGaussian(i, after) {
 function drawDepthMap() {
     let depthMapCanvas = document.getElementById("depthMap");
     let depthMapCtx = depthMapCanvas.getContext("2d");
+    let originalDepthMapCanvas = new OffscreenCanvas(mainCanvas.width, mainCanvas.height);
+    let originalDepthMapCtx = originalDepthMapCanvas.getContext("2d");
     depthMapCanvas.width = mainCanvas.width;
     depthMapCanvas.height = mainCanvas.height;
-    let depthMapData = depthMapCtx.createImageData(mainCanvas.width, mainCanvas.height);
+    let depthMapData = originalDepthMapCtx.createImageData(mainCanvas.width, mainCanvas.height);
     let depthMap = depthMapData.data;
     for (let i = 0; i < depthMapCanvas.height; i++) {
         for (let j = 0; j < depthMapCanvas.width; j++) {
@@ -256,7 +262,9 @@ function drawDepthMap() {
             depthMap[(i * mainCanvas.width + j) * 4 + 3] = 255;
         }
     }
-    depthMapCtx.putImageData(depthMapData, 0, 0);
+    originalDepthMapCtx.putImageData(depthMapData, 0, 0);
+    depthMapCtx.filter = "blur(" + (anaglyphSettings.depthSmooth) + "px)";
+    depthMapCtx.drawImage(originalDepthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
     setTimeout(() => {
         drawEye(1.0, document.getElementById("leftImage"));
         setTimeout(() => {
@@ -271,14 +279,9 @@ function drawDepthMap() {
 
 function drawEye(sign, canvasObject) {
     let depthMapCanvas = document.getElementById("depthMap");
-    let smoothenedDepthMapCanvas = new OffscreenCanvas(depthMapCanvas.width, depthMapCanvas.height);
-    let smoothenedDepthMapCtx = smoothenedDepthMapCanvas.getContext("2d");
-    smoothenedDepthMapCanvas.width = depthMapCanvas.width;
-    smoothenedDepthMapCanvas.height = depthMapCanvas.height;
-    smoothenedDepthMapCtx.filter = "blur(" + (anaglyphSettings.depthSmooth) + "px)";
-    smoothenedDepthMapCtx.drawImage(depthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
-    let smoothenedDepthMapData = smoothenedDepthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-    let depthData = smoothenedDepthMapData.data;
+    let depthMapCtx = depthMapCanvas.getContext("2d");
+    let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    let depthData = depthMapData.data;
     let context = canvasObject.getContext("2d");
     canvasObject.width = mainCanvas.width;
     canvasObject.height = mainCanvas.height;
@@ -287,7 +290,7 @@ function drawEye(sign, canvasObject) {
     let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     for (let i = 0; i < canvasObject.height; i++) {
         for (let j = 0; j < canvasObject.width; j++) {
-            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * anaglyphSettings.depthFactor - anaglyphSettings.depthFactor * anaglyphSettings.depthStart;
+            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * anaglyphSettings.depthFactor + anaglyphSettings.depthFactor * anaglyphSettings.depthStart;
             let x = (j + sign * depth) | 0;
             let y = i;
             if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
