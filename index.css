@@ -4,7 +4,7 @@ body {
     font-size: 16px;
     font-weight: 400;
     line-height: 1.5;
-    color: #212529;
+    color: #8b95a0;
     text-align: left;
     margin: 0;
     padding: 0;
@@ -35,16 +35,86 @@ canvas {
     margin: 0;
 }
 
-#images {
+.buttonContainer {
     background-color: #212529;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    margin: 8px auto;
+    margin: 8px auto 8px auto;
     max-width: 80vw;
     min-width: 80vh;
     min-height: 10vh;
+    color: white;
+    font-size: 32px;
+}
+
+.focusButton {
+    border: 4px solid yellow;
+}
+
+.disabledButton {
+    background-color: #343a40;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+.buttonContainer:hover {
+    background-color: #343a40;
+}
+
+#leftCustomMatrix, #rightCustomMatrix {
+    /* 3x3 table */
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    border: 1px solid #000000;
+    margin: 0;
+    width: fit-content;
+}
+
+.settingsGroup {
+    width: 80vw;
+    max-width: 80vw;
+    margin: auto auto 16px auto;
+}
+
+.settingsGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-gap: 8px;
+    margin: 0;
+    padding: 0;
+    width: 80vw;
+    max-width: 80vw;
+    margin: auto;
+}
+
+.customMatrix {
+    display: flex;
+    flex-direction: row;
+}
+
+.settingsGrid > div > label {
+    display: inline-block;
+    min-width: 8rem;
+}
+
+label {
+    font-size: 0.8rem;
+    vertical-align: middle;
+}
+
+input[type="number"] {
+    width: 4rem;
+    height: 1.5rem;
+    font-size: 1rem;
+    margin: 0;
+}
+
+input[type="range"] {
+    position: relative;
+    top: 0.2rem;
 }
 
 .statusText {
@@ -80,7 +150,7 @@ canvas {
     position: relative;
     width: 400px;
     overflow: hidden;
-    margin: 0;
+    margin: 8px auto auto auto;
     padding: 0;
     display: block;
     max-width: 400px;

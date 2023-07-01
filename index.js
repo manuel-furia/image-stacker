@@ -1,3 +1,4 @@
+const STD_WIDTH = 1920;
 let mainCanvas = document.getElementById("canvas");
 let mainCanvasCtx = mainCanvas.getContext("2d")
 
@@ -7,6 +8,17 @@ let stackingData = {
     imageSet: [],
     fusionDepth: [],
     maximumDepth: 0
+}
+
+let statusData = {
+    stackComputed: false,
+    depthComputed: false,
+    eyesComputed: false,
+    anaglyphComputed: false,
+    resetAll,
+    refreshDepth,
+    refreshEyes,
+    refreshAnaglyph,
 }
 
 let anaglyphSettings = {
@@ -22,9 +34,9 @@ let anaglyphSettings = {
     ],
     leftGamma: 1.3,
     rightGamma: 1.0,
-    depthFactor: 20.0,
+    depthScale: 20.0,
     depthSmooth: 2.0,
-    depthStart: -1.0,
+    depthOffset: -1.0,
 }
 
 let stackingSettings = {
@@ -34,6 +46,74 @@ let stackingSettings = {
     topBias: 0.0,
     bottomBias: 0.0,
     invertImages: false,
+}
+
+let settingsUI = SettingHandler(
+    stackingSettings,
+    anaglyphSettings,
+    resetAll,
+    refreshDepth,
+    refreshEyes,
+    refreshAnaglyph,
+);
+
+settingsUI.updateUIValues();
+settingsUI.registerUIEvents();
+
+function resetAll() {
+    stackingData.imageSet.forEach((image) => {
+        image.differenceOfGaussianStack = null;
+    });
+    updateImagesDiv();
+    if (!statusData.stackComputed) {
+        return;
+    }
+    stackingData.fusionDepth = [];
+    stackingData.maximumDepth = 0;
+    mainCanvas.width = 0;
+    mainCanvas.height = 0;
+    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    document.getElementById("depthMap").width = 0;
+    document.getElementById("depthMap").height = 0;
+    document.getElementById("leftImage").width = 0;
+    document.getElementById("leftImage").height = 0;
+    document.getElementById("rightImage").width = 0;
+    document.getElementById("rightImage").height = 0;
+    document.getElementById("anaglyph").width = 0;
+    document.getElementById("anaglyph").height = 0;
+    statusData.stackComputed = false;
+    enableCompute();
+}
+
+function refreshAnaglyph() {
+    document.getElementById("anaglyph").width = 0;
+    document.getElementById("anaglyph").height = 0;
+    statusData.anaglyphComputed = false;
+    return drawAnaglyphsAsync();
+}
+
+function refreshDepth() {
+    document.getElementById("depthMap").width = 0;
+    document.getElementById("depthMap").height = 0;
+    statusData.depthComputed = false;
+    return drawDepthMapAsync().then(() => {
+        refreshEyes();
+    });
+}
+
+function refreshEyes() {
+    document.getElementById("leftImage").width = 0;
+    document.getElementById("leftImage").height = 0;
+    document.getElementById("rightImage").width = 0;
+    document.getElementById("rightImage").height = 0;
+    statusData.eyesComputed = false;
+    return drawEyesAsync().then(() => {
+        refreshAnaglyph();
+    });
+}
+
+function toStdSize(size, imageWidth) {
+    return size * imageWidth / STD_WIDTH;
 }
 
 imagesDiv.addEventListener("mousedown", function (e) {
@@ -47,27 +127,73 @@ imagesDiv.addEventListener("mousedown", function (e) {
     imagesDiv.removeEventListener("mousedown", arguments.callee);
 });
 
-mainCanvas.addEventListener("mousedown", function (e) {
-    drawStacked();
+function disableCompute() {
+    document.getElementById("compute").classList.add("disabledButton");
+    document.getElementById("compute").classList.remove("focusButton");
+}
+
+function enableCompute() {
+    document.getElementById("compute").classList.remove("disabledButton");
+    document.getElementById("compute").classList.add("focusButton");
+}
+
+document.getElementById("compute").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("compute").classList.contains("disabledButton")) {
+        disableCompute();
+        document.getElementById("stackingSettings").scrollIntoView();
+        computeAsync();
+    }
 });
+
+function computeAsync() {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            drawStacked().then(() => {
+                drawDepthMapAsync().then(() => {
+                    drawEyesAsync().then(() => {
+                        drawAnaglyphsAsync().then(() => {
+                            enableCompute();
+                            resolve();
+                        });
+                    });
+                });
+            });
+        }, 0);
+    });
+}
 
 function handleImages(e) {
     let files = e.target.files;
-    for (let i = 0; i < files.length; i++) {
-        let img = new Image();
-        img.onload = function () {
-            let time = new Date().getTime();
+    loadImages(files).then((images) => {
+        for (let image of images) {
+            let img = image.img;
+            let file = image.file;
             addImage({
-                name: files[i].name,
+                name: file.name,
                 img: img,
                 imgContainer: null,
                 originalData: null,
                 differenceOfGaussianStack: null,
                 statusText: null});
-            console.log("Loaded image " + i + " in " + (new Date().getTime() - time) + "ms");
         }
-        img.src = URL.createObjectURL(files[i]);
-    }
+        enableCompute();
+    });
+}
+
+function loadImages(files) {
+    return new Promise((resolve, reject) => {
+        let images = [];
+        for (let i = 0; i < files.length; i++) {
+            let img = new Image();
+            img.onload = function () {
+                images.push({file: files[i], img: img});
+                if (images.length === files.length) {
+                    resolve(images);
+                }
+            }
+            img.src = URL.createObjectURL(files[i]);
+        }
+    });
 }
 
 function clearImages() {
@@ -121,7 +247,9 @@ function addImage(image) {
         }
         mainCanvas.width = newWidth;
         mainCanvas.height = newHeight;
-        mainCanvasCtx.putImageData(differenceOfGaussian(image.originalData, stackingSettings.sigmaA, stackingSettings.sigmaB), 0, 0);
+        let sA = toStdSize(stackingSettings.sigmaA, mainCanvas.width);
+        let sB = toStdSize(stackingSettings.sigmaB, mainCanvas.width);
+        mainCanvasCtx.putImageData(differenceOfGaussian(image.originalData, sA, sB), 0, 0);
     }
     let tempCanvas = new OffscreenCanvas(originalWidth, originalHeight);
     let tempCtx = tempCanvas.getContext("2d");
@@ -233,7 +361,9 @@ function updateDifferenceOfGaussian(i, after) {
         imageSet[i].differenceOfGaussianStack = [];
         for (let j = 0; j < stackingSettings.stackDepth; j++) {
             let factor = 1 << j;
-            imageSet[i].differenceOfGaussianStack.push(differenceOfGaussian(imageSet[i].originalData, stackingSettings.sigmaA * factor, stackingSettings.sigmaB * factor));
+            let sA = toStdSize(stackingSettings.sigmaA, imageSet[i].img.width) * factor;
+            let sB = toStdSize(stackingSettings.sigmaB, imageSet[i].img.width) * factor;
+            imageSet[i].differenceOfGaussianStack.push(differenceOfGaussian(imageSet[i].originalData, sA * factor, sB * factor));
         }
     }
     drawStatus("Processed: " + (i + 1) + "/" + imageSet.length);
@@ -242,6 +372,50 @@ function updateDifferenceOfGaussian(i, after) {
     } else {
         setTimeout(() => updateDifferenceOfGaussian(i + 1, after), 0);
     }
+}
+
+function isLitteEndian() {
+    let buffer = new ArrayBuffer(2);
+    new DataView(buffer).setInt16(0, 256, true);
+    return new Int16Array(buffer)[0] === 256;
+}
+
+function renormalizeDepthMap(depthMapCtx) {
+    let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    let depthMap = depthMapData.data;
+    let maximumDepth = 0;
+    let minimumDepth = 255;
+    let pixelCount = mainCanvas.width * mainCanvas.height;
+    for (let i = 0; i < pixelCount; i++) {
+        let depth = depthMap[i * 4];
+        if (depth > maximumDepth) {
+            maximumDepth = depth;
+        }
+        if (depth < minimumDepth) {
+            minimumDepth = depth;
+        }
+    }
+    let depthRange = maximumDepth - minimumDepth;
+    for (let i = 0; i < pixelCount; i++) {
+        let depth = depthMap[i * 4];
+        let normalizedDepth = (depth - minimumDepth) * 255 / depthRange;
+        depthMap[i * 4] = normalizedDepth;
+        depthMap[i * 4 + 1] = normalizedDepth;
+        depthMap[i * 4 + 2] = normalizedDepth;
+    }
+    depthMapCtx.putImageData(depthMapData, 0, 0);
+}
+
+function drawDepthMapAsync() {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            drawLoadingStatus(document.getElementById("depthMap"), mainCanvas.width, mainCanvas.height);
+            setTimeout(() => {
+                drawDepthMap();
+                resolve();
+            }, 0)
+        }, 0);
+    });
 }
 
 function drawDepthMap() {
@@ -263,18 +437,38 @@ function drawDepthMap() {
         }
     }
     originalDepthMapCtx.putImageData(depthMapData, 0, 0);
-    depthMapCtx.filter = "blur(" + (anaglyphSettings.depthSmooth) + "px)";
+    depthMapCtx.filter = "blur(" + (toStdSize(anaglyphSettings.depthSmooth, mainCanvas.width)) + "px)";
     depthMapCtx.drawImage(originalDepthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
-    setTimeout(() => {
-        drawEye(1.0, document.getElementById("leftImage"));
+    renormalizeDepthMap(depthMapCtx);
+    statusData.depthComputed = true;
+}
+
+function drawAnaglyphsAsync() {
+    return new Promise((resolve, reject) => {
         setTimeout(() => {
-            drawEye(-1.0, document.getElementById("rightImage"));
+            drawLoadingStatus(document.getElementById("anaglyph"), mainCanvas.width, mainCanvas.height);
             setTimeout(() => {
                 drawAnaglyph();
+                resolve();
             }, 0);
         }, 0);
-    }, 0);
-    
+    });
+}
+
+function drawEyesAsync() {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            drawLoadingStatus(document.getElementById("leftImage"), mainCanvas.width, mainCanvas.height);
+            setTimeout(() => {
+                drawEye(1.0, document.getElementById("leftImage"));
+                drawLoadingStatus(document.getElementById("rightImage"), mainCanvas.width, mainCanvas.height);
+                setTimeout(() => {
+                    drawEye(-1.0, document.getElementById("rightImage"));
+                    resolve();
+                }, 0);
+            }, 0);
+        }, 0);
+    });
 }
 
 function drawEye(sign, canvasObject) {
@@ -288,9 +482,11 @@ function drawEye(sign, canvasObject) {
     let imageData = context.createImageData(mainCanvas.width, mainCanvas.height);
     let data = imageData.data;
     let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    let dF = toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+    let dO = anaglyphSettings.depthOffset;
     for (let i = 0; i < canvasObject.height; i++) {
         for (let j = 0; j < canvasObject.width; j++) {
-            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * anaglyphSettings.depthFactor + anaglyphSettings.depthFactor * anaglyphSettings.depthStart;
+            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * dF + dF * dO;
             let x = (j + sign * depth) | 0;
             let y = i;
             if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
@@ -354,23 +550,26 @@ function drawAnaglyph() {
         }
     }
     anaglyphCtx.putImageData(anaglyphData, 0, 0);
+    statusData.anaglyphComputed = true;
 }
 
 function drawStacked() {
-    let imageSet = stackingData.imageSet;
-    if (imageSet.length === 0)
-        return;
-    mainCanvas.width = imageSet[0].img.width;
-    mainCanvas.height = imageSet[0].img.height;
-    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-    initializeDepths(mainCanvas.width, mainCanvas.height);
-    setTimeout(() => updateDifferenceOfGaussian(0, () => {
-        let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
-        setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0)), 0);
-    }), 0);
+    return new Promise((resolve, reject) => {
+        let imageSet = stackingData.imageSet;
+        if (imageSet.length === 0)
+            return;
+        mainCanvas.width = imageSet[0].img.width;
+        mainCanvas.height = imageSet[0].img.height;
+        mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+        initializeDepths(mainCanvas.width, mainCanvas.height);
+        setTimeout(() => updateDifferenceOfGaussian(0, () => {
+            let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
+            setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0), resolve), 0);
+        }), 0);
+    });
 }
 
-function drawStackedChunk(imageData, x1, x2) {
+function drawStackedChunk(imageData, x1, x2, done) {
     let imageSet = stackingData.imageSet;
     let data = imageData.data;
     for (let x = x1; x < x2; x++) {
@@ -386,10 +585,23 @@ function drawStackedChunk(imageData, x1, x2) {
     drawStatus("Stacking: " + (100 * x1 / mainCanvas.width).toFixed(0) + "%");
     if (x2 === mainCanvas.width) {
         mainCanvasCtx.putImageData(imageData, 0, 0);
-        setTimeout(() => drawDepthMap(), 0);
+        statusData.stackComputed = true;
+        done();
     } else {
-        setTimeout(() => drawStackedChunk(imageData, x2, Math.min(x2 + (x2 - x1), mainCanvas.width)), 0);
+        setTimeout(() => drawStackedChunk(imageData, x2, Math.min(x2 + (x2 - x1), mainCanvas.width), done), 0);
     }
+}
+
+function drawLoadingStatus(targetCanvas, width, height) {
+    targetCanvas.width = width;
+    targetCanvas.height = height;
+    let ctx = targetCanvas.getContext("2d");
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "120px Arial";
+    let metrics = ctx.measureText("Loading...");
+    let textWidth = metrics.width;
+    ctx.fillText("Loading...", (width - textWidth) / 2, height / 2);
 }
 
 function drawStatus(text) {
