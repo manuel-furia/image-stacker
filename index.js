@@ -1,10 +1,14 @@
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d")
-let imageSet = [];
-let fusionDepth = [];
-let maximumDepth = 0;
+let mainCanvas = document.getElementById("canvas");
+let mainCanvasCtx = mainCanvas.getContext("2d")
 
 let imagesDiv = document.getElementById("images");
+
+let stackingData = {
+    imageSet: [],
+    fusionDepth: [],
+    maximumDepth: 0
+}
+
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
@@ -26,7 +30,7 @@ imagesDiv.addEventListener("mousedown", function (e) {
     imagesDiv.removeEventListener("mousedown", arguments.callee);
 });
 
-canvas.addEventListener("mousedown", function (e) {
+mainCanvas.addEventListener("mousedown", function (e) {
     drawStacked();
 });
 
@@ -49,7 +53,7 @@ function handleImages(e) {
 }
 
 function clearImages() {
-    imageSet = [];
+    stackingData.imageSet = [];
     imagesDiv.innerHTML = "";
 }
 
@@ -57,7 +61,7 @@ function addImage(image) {
     if (image.originalData !== null && image.differenceOfGaussianStack !== null) {
         return;
     }
-    imageSet.push(image);
+    stackingData.imageSet.push(image);
     let originalWidth = image.img.width;
     let originalHeight = image.img.height;
     let ratio = originalWidth / originalHeight;
@@ -79,9 +83,9 @@ function addImage(image) {
     img.style.height = imgStyleHeight + "px";
     imagesDiv.appendChild(container);
     container.onclick = function () {
-        canvas.width = newWidth;
-        canvas.height = newHeight;
-        ctx.putImageData(differenceOfGaussian(image.originalData, stackingSettings.sigmaA, stackingSettings.sigmaB), 0, 0);
+        mainCanvas.width = newWidth;
+        mainCanvas.height = newHeight;
+        mainCanvasCtx.putImageData(differenceOfGaussian(image.originalData, stackingSettings.sigmaA, stackingSettings.sigmaB), 0, 0);
     }
     let tempCanvas = new OffscreenCanvas(originalWidth, originalHeight);
     let tempCtx = tempCanvas.getContext("2d");
@@ -89,7 +93,7 @@ function addImage(image) {
     tempCanvas.height = originalHeight;
     tempCtx.drawImage(image.img, 0, 0, originalWidth, originalHeight);
     image.originalData = tempCtx.getImageData(0, 0, originalWidth, originalHeight);
-    imageSet.sort((a, b) => a.name.localeCompare(b.name));
+    stackingData.imageSet.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function differenceOfGaussian(imageData, s1, s2) {
@@ -110,7 +114,7 @@ function differenceOfGaussian(imageData, s1, s2) {
     tempCtx.filter = "blur(" + s2 + "px)";
     tempCtx.drawImage(imageCanvas, 0, 0, originalWidth, originalHeight);
     let imageData2 = tempCtx.getImageData(0, 0, originalWidth, originalHeight);
-    let result = ctx.createImageData(originalWidth, originalHeight);
+    let result = mainCanvasCtx.createImageData(originalWidth, originalHeight);
     let data1 = imageData1.data;
     let data2 = imageData2.data;
     let resultData = result.data;
@@ -126,11 +130,11 @@ function differenceOfGaussian(imageData, s1, s2) {
 }
 
 function initializeDepths(w, h) {
-    maximumDepth = 0;
+    stackingData.maximumDepth = 0;
     for (let i = 0; i < h; i++) {
-        fusionDepth[i] = [];
+        stackingData.fusionDepth[i] = [];
         for (let j = 0; j < w; j++) {
-            fusionDepth[i][j] = 0;
+            stackingData.fusionDepth[i][j] = 0;
         }
     }
 }
@@ -141,19 +145,18 @@ function addDepth(x, y, indicesAndScores) {
     let depth = 0;
 
     for (let k = 0; k < 3; k++) {
-        depth += scores[k] * stackingSettings.invertDepth ? (imageSet.length - indices[k]) : indices[k];
+        depth += scores[k] * stackingSettings.invertDepth ? (stackingData.imageSet.length - indices[k]) : indices[k];
     }
-    if (depth > maximumDepth) {
-        maximumDepth = depth;
+    if (depth > stackingData.maximumDepth) {
+        stackingData.maximumDepth = depth;
     }
-    fusionDepth[y][x] = depth;
+    stackingData.fusionDepth[y][x] = depth;
 }
 
 function pickBestImage(x, y) {
     let maxWeight = [0, 0, 0];
     let maxWeightIndex = [0, 0, 0];
-    let minWeight = [255, 255, 255];
-    let minWeightIndex = [0, 0, 0];
+    let imageSet = stackingData.imageSet;
 
     for (let i = 0; i < imageSet.length; i++) {
         let weight = [0, 0, 0];
@@ -169,25 +172,14 @@ function pickBestImage(x, y) {
                 maxWeight[k] = weight[k];
                 maxWeightIndex[k] = i;
             }
-            if (weight[k] < minWeight[k]) {
-                minWeight[k] = weight[k];
-                minWeightIndex[k] = i;
-            }
         }
     }
 
-    let resultIndex = [0, 0, 0];
-    let resultWeight = minWeight;
-
-    for (let k = 0; k < 3; k++) {
-        resultIndex[k] = maxWeightIndex[k]
-        resultWeight[k] = maxWeight[k];
-    }
-
-    return {indices: resultIndex, scores: resultWeight};
+    return {indices: maxWeightIndex, scores: maxWeight};
 }
 
 function updateDifferenceOfGaussian(i, after) {
+    let imageSet = stackingData.imageSet;
     if (imageSet[i].differenceOfGaussianStack === null) {
         imageSet[i].differenceOfGaussianStack = [];
         for (let j = 0; j < stackingSettings.stackDepth; j++) {
@@ -206,17 +198,17 @@ function updateDifferenceOfGaussian(i, after) {
 function drawDepthMap() {
     let depthMapCanvas = document.getElementById("depthMap");
     let depthMapCtx = depthMapCanvas.getContext("2d");
-    depthMapCanvas.width = canvas.width;
-    depthMapCanvas.height = canvas.height;
-    let depthMapData = depthMapCtx.createImageData(canvas.width, canvas.height);
+    depthMapCanvas.width = mainCanvas.width;
+    depthMapCanvas.height = mainCanvas.height;
+    let depthMapData = depthMapCtx.createImageData(mainCanvas.width, mainCanvas.height);
     let depthMap = depthMapData.data;
     for (let i = 0; i < depthMapCanvas.height; i++) {
         for (let j = 0; j < depthMapCanvas.width; j++) {
-            let depth = fusionDepth[i][j] / maximumDepth;
+            let depth = stackingData.fusionDepth[i][j] / stackingData.maximumDepth;
             for (let k = 0; k < 3; k++) {
-                depthMap[(i * canvas.width + j) * 4 + k] = (depth * 255) | 0;
+                depthMap[(i * mainCanvas.width + j) * 4 + k] = (depth * 255) | 0;
             }
-            depthMap[(i * canvas.width + j) * 4 + 3] = 255;
+            depthMap[(i * mainCanvas.width + j) * 4 + 3] = 255;
         }
     }
     depthMapCtx.putImageData(depthMapData, 0, 0);
@@ -240,24 +232,24 @@ function drawEye(sign, canvasObject) {
     smoothenedDepthMapCanvas.height = depthMapCanvas.height;
     smoothenedDepthMapCtx.filter = "blur(" + (stackingSettings.depthSmooth) + "px)";
     smoothenedDepthMapCtx.drawImage(depthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
-    let smoothenedDepthMapData = smoothenedDepthMapCtx.getImageData(0, 0, canvas.width, canvas.height);
+    let smoothenedDepthMapData = smoothenedDepthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     let depthData = smoothenedDepthMapData.data;
     let context = canvasObject.getContext("2d");
-    canvasObject.width = canvas.width;
-    canvasObject.height = canvas.height;
-    let imageData = context.createImageData(canvas.width, canvas.height);
+    canvasObject.width = mainCanvas.width;
+    canvasObject.height = mainCanvas.height;
+    let imageData = context.createImageData(mainCanvas.width, mainCanvas.height);
     let data = imageData.data;
-    let originalFusionData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     for (let i = 0; i < canvasObject.height; i++) {
         for (let j = 0; j < canvasObject.width; j++) {
-            let depth = (depthData[(i * canvas.width + j) * 4] / 255) * stackingSettings.depthFactor - stackingSettings.depthFactor * stackingSettings.depthStart;
+            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * stackingSettings.depthFactor - stackingSettings.depthFactor * stackingSettings.depthStart;
             let x = (j + sign * depth) | 0;
             let y = i;
             if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
                 for (let k = 0; k < 3; k++) {
-                    data[(i * canvas.width + j) * 4 + k] = originalFusionData.data[(y * canvas.width + x) * 4 + k];
+                    data[(i * mainCanvas.width + j) * 4 + k] = originalFusionData.data[(y * mainCanvas.width + x) * 4 + k];
                 }
-                data[(i * canvas.width + j) * 4 + 3] = 255;
+                data[(i * mainCanvas.width + j) * 4 + 3] = 255;
             }
         }
     }
@@ -292,46 +284,48 @@ function drawAnaglyph() {
 }
 
 function drawStacked() {
+    let imageSet = stackingData.imageSet;
     if (imageSet.length === 0)
         return;
-    canvas.width = imageSet[0].img.width;
-    canvas.height = imageSet[0].img.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    initializeDepths(canvas.width, canvas.height);
+    mainCanvas.width = imageSet[0].img.width;
+    mainCanvas.height = imageSet[0].img.height;
+    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    initializeDepths(mainCanvas.width, mainCanvas.height);
     setTimeout(() => updateDifferenceOfGaussian(0, () => {
-        let imageData = ctx.createImageData(canvas.width, canvas.height);
-        setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (canvas.width / 100) | 0)), 0);
+        let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
+        setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0)), 0);
     }), 0);
 }
 
 function drawStackedChunk(imageData, x1, x2) {
+    let imageSet = stackingData.imageSet;
     let data = imageData.data;
     for (let x = x1; x < x2; x++) {
-        for (let y = 0; y < canvas.height; y++) {
+        for (let y = 0; y < mainCanvas.height; y++) {
             let bestImage = pickBestImage(x, y);
             for (let k = 0; k < 3; k++)
-                data[(y * canvas.width + x) * 4 + k] = imageSet[bestImage.indices[k]].originalData.data[(y * canvas.width + x) * 4 + k];
-            data[(y * canvas.width + x) * 4 + 3] = 255;
+                data[(y * mainCanvas.width + x) * 4 + k] = imageSet[bestImage.indices[k]].originalData.data[(y * mainCanvas.width + x) * 4 + k];
+            data[(y * mainCanvas.width + x) * 4 + 3] = 255;
             addDepth(x, y, bestImage);
         }
     }
     // Draw percentage progress
-    drawStatus("Stacking: " + (100 * x1 / canvas.width).toFixed(0) + "%");
-    if (x2 === canvas.width) {
-        ctx.putImageData(imageData, 0, 0);
+    drawStatus("Stacking: " + (100 * x1 / mainCanvas.width).toFixed(0) + "%");
+    if (x2 === mainCanvas.width) {
+        mainCanvasCtx.putImageData(imageData, 0, 0);
         setTimeout(() => drawDepthMap(), 0);
     } else {
-        setTimeout(() => drawStackedChunk(imageData, x2, Math.min(x2 + (x2 - x1), canvas.width)), 0);
+        setTimeout(() => drawStackedChunk(imageData, x2, Math.min(x2 + (x2 - x1), mainCanvas.width)), 0);
     }
 }
 
 function drawStatus(text) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "120px Arial";
-    let metrics = ctx.measureText(text);
+    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    mainCanvasCtx.fillStyle = "#ffffff";
+    mainCanvasCtx.font = "120px Arial";
+    let metrics = mainCanvasCtx.measureText(text);
     let textWidth = metrics.width;
-    ctx.fillText(text, (canvas.width - textWidth) / 2, canvas.height / 2);
+    mainCanvasCtx.fillText(text, (mainCanvas.width - textWidth) / 2, mainCanvas.height / 2);
 }
 
 function LoG(x, y, s) {
