@@ -9,14 +9,29 @@ let stackingData = {
     maximumDepth: 0
 }
 
+let anaglyphSettings = {
+    leftMatrix: [
+        [0.7, 0.3, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0]
+    ],
+    rightMatrix: [
+        [0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+    ],
+    leftGamma: 1.5,
+    rightGamma: 1.0,
+    depthFactor: 60.0,
+    depthSmooth: 8.0,
+    depthStart: 0.5,
+}
+
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
     stackDepth: 1,
-    depthFactor: 60.0,
-    depthSmooth: 8.0,
-    depthStart: 0.5,
-    invertDepth: false,
+    invertImages: true,
 }
 
 imagesDiv.addEventListener("mousedown", function (e) {
@@ -115,7 +130,7 @@ function addImage(image) {
     updateImagesDiv();
 }
 function updateImagesDiv() {
-    if (stackingSettings.invertDepth) {
+    if (stackingSettings.invertImages) {
         stackingData.imageSet.sort((a, b) => b.name.localeCompare(a.name));
     } else {
         stackingData.imageSet.sort((a, b) => a.name.localeCompare(b.name));
@@ -172,11 +187,10 @@ function initializeDepths(w, h) {
 
 function addDepth(x, y, indicesAndScores) {
     let indices = indicesAndScores.indices;
-    let scores = indicesAndScores.scores;
     let depth = 0;
 
     for (let k = 0; k < 3; k++) {
-        depth += scores[k] * indices[k];
+        depth += indices[k] / 3;
     }
     if (depth > stackingData.maximumDepth) {
         stackingData.maximumDepth = depth;
@@ -261,7 +275,7 @@ function drawEye(sign, canvasObject) {
     let smoothenedDepthMapCtx = smoothenedDepthMapCanvas.getContext("2d");
     smoothenedDepthMapCanvas.width = depthMapCanvas.width;
     smoothenedDepthMapCanvas.height = depthMapCanvas.height;
-    smoothenedDepthMapCtx.filter = "blur(" + (stackingSettings.depthSmooth) + "px)";
+    smoothenedDepthMapCtx.filter = "blur(" + (anaglyphSettings.depthSmooth) + "px)";
     smoothenedDepthMapCtx.drawImage(depthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
     let smoothenedDepthMapData = smoothenedDepthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     let depthData = smoothenedDepthMapData.data;
@@ -273,7 +287,7 @@ function drawEye(sign, canvasObject) {
     let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     for (let i = 0; i < canvasObject.height; i++) {
         for (let j = 0; j < canvasObject.width; j++) {
-            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * stackingSettings.depthFactor - stackingSettings.depthFactor * stackingSettings.depthStart;
+            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * anaglyphSettings.depthFactor - anaglyphSettings.depthFactor * anaglyphSettings.depthStart;
             let x = (j + sign * depth) | 0;
             let y = i;
             if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
@@ -287,10 +301,24 @@ function drawEye(sign, canvasObject) {
     context.putImageData(imageData, 0, 0);
 }
 
+function gammaCorrection(intensity, gamma) {
+    return Math.pow(intensity / 255, 1 / gamma) * 255;
+}
+
+function vectorMultiply(matrix, vector) {
+    let result = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+        result[i] = 0;
+        for (let j = 0; j < 3; j++) {
+            result[i] += matrix[i][j] * vector[j];
+        }
+    }
+    return result;
+}
+
 function drawAnaglyph() {
-    // Note: left and right are swapped because anaglyphs are swapped with respect to cross-eye
-    let leftCanvas = document.getElementById("rightImage");
-    let rightCanvas = document.getElementById("leftImage");
+    let leftCanvas = document.getElementById("leftImage");
+    let rightCanvas = document.getElementById("rightImage");
     let anaglyphCanvas = document.getElementById("anaglyph");
     let anaglyphCtx = anaglyphCanvas.getContext("2d");
     anaglyphCanvas.width = leftCanvas.width;
@@ -302,12 +330,23 @@ function drawAnaglyph() {
 
     for (let i = 0; i < anaglyphCanvas.height; i++) {
         for (let j = 0; j < anaglyphCanvas.width; j++) {
-            let redChannel = (0.7 * leftData[(i * leftCanvas.width + j) * 4 + 0]) + (0.3 * leftData[(i * rightCanvas.width + j) * 4 + 2]);
-            let gamma = 1.5;
-            let gammaCorrectedRedChannel = (Math.pow(redChannel / 255, 1/gamma) * 255) | 0;
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 0] = gammaCorrectedRedChannel;
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 1] = rightData[(i * rightCanvas.width + j) * 4 + 1];
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 2] = rightData[(i * rightCanvas.width + j) * 4 + 2];
+            let leftColor = [0, 0, 0];
+            let rightColor = [0, 0, 0];
+            for (let k = 0; k < 3; k++) {
+                // NOTE: In anaglyphs, the left and right images are swapped compare to cross-eye
+                leftColor[k] = rightData[(i * leftCanvas.width + j) * 4 + k];
+                rightColor[k] = leftData[(i * rightCanvas.width + j) * 4 + k];
+            }
+            let leftMatrix = anaglyphSettings.leftMatrix;
+            let rightMatrix = anaglyphSettings.rightMatrix;
+            const leftContribution = vectorMultiply(leftMatrix, leftColor);
+            const rightContribution = vectorMultiply(rightMatrix, rightColor);
+            let redChannel =  gammaCorrection(leftContribution[0], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[0], anaglyphSettings.rightGamma);
+            let greenChannel = gammaCorrection(leftContribution[1], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[1], anaglyphSettings.rightGamma);
+            let blueChannel = gammaCorrection(leftContribution[2], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[2], anaglyphSettings.rightGamma);
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 0] = redChannel;
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 1] = greenChannel;
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 2] = blueChannel;
             anaglyph[(i * anaglyphCanvas.width + j) * 4 + 3] = 255;
         }
     }
