@@ -347,9 +347,9 @@ function drawAnaglyph() {
             let redChannel =  gammaCorrection(leftContribution[0], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[0], anaglyphSettings.rightGamma);
             let greenChannel = gammaCorrection(leftContribution[1], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[1], anaglyphSettings.rightGamma);
             let blueChannel = gammaCorrection(leftContribution[2], anaglyphSettings.leftGamma) + gammaCorrection(rightContribution[2], anaglyphSettings.rightGamma);
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 0] = redChannel;
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 1] = greenChannel;
-            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 2] = blueChannel;
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 0] = Math.max(0, Math.min(255, redChannel));
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 1] = Math.max(0, Math.min(255, greenChannel));
+            anaglyph[(i * anaglyphCanvas.width + j) * 4 + 2] = Math.max(0, Math.min(255, blueChannel));
             anaglyph[(i * anaglyphCanvas.width + j) * 4 + 3] = 255;
         }
     }
