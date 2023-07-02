@@ -6,11 +6,7 @@
         <link href="index.css" rel="stylesheet">
     </head>
     <body>
-        <div id="settings">
-            
-            
-            
-        </div>
+        <h1>Image Stacker v1.0</h1>
         <div class="buttonContainer" id="images">
             Click here to load images
         </div>
@@ -56,7 +52,7 @@
             </div>
         </div>
         <canvas id="depthMap"></canvas>
-        <div class="disabledButton buttonContainer" id="downloadDepthMap">Download Depth Map</div>
+        <div class="disabledButton buttonContainer" id="downloadDepth">Download Depth Map</div>
         <div class="settingsGroup" id="threeDSettings">
             <h2>3D Settings</h2>
             <div class="settingsGrid">
@@ -74,7 +70,11 @@
             <canvas id="leftImage"></canvas>
             <canvas id="rightImage"></canvas>
         </div>
-        <div class="disabledButton buttonContainer" id="downloadStereo">Download Stereo</div>
+        <div class="thirdContainer">
+            <div class="oneThird disabledButton buttonContainer" id="downloadStereoLeft">Download Left</div>
+            <div class="oneThird disabledButton buttonContainer" id="downloadStereo">Download Stereo</div>
+            <div class="oneThird disabledButton buttonContainer" id="downloadStereoRight">Download Right</div>
+        </div>
         <div class="settingsGroup" id="anaglyphMatrixSettings">
             <h2>Anaglyph Settings</h2>
             <div class="settingsGrid">

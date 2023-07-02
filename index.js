@@ -82,6 +82,12 @@ function resetAll() {
     document.getElementById("anaglyph").width = 0;
     document.getElementById("anaglyph").height = 0;
     statusData.stackComputed = false;
+    document.getElementById("downloadStacked").classList.add("disabledButton");
+    document.getElementById("downloadDepth").classList.add("disabledButton");
+    document.getElementById("downloadStereoLeft").classList.add("disabledButton");
+    document.getElementById("downloadStereo").classList.add("disabledButton");
+    document.getElementById("downloadStereoRight").classList.add("disabledButton");
+    document.getElementById("downloadAnaglyph").classList.add("disabledButton");
     enableCompute();
 }
 
@@ -89,6 +95,7 @@ function refreshAnaglyph() {
     document.getElementById("anaglyph").width = 0;
     document.getElementById("anaglyph").height = 0;
     statusData.anaglyphComputed = false;
+    document.getElementById("downloadAnaglyph").classList.add("disabledButton");
     return drawAnaglyphsAsync();
 }
 
@@ -96,6 +103,11 @@ function refreshDepth() {
     document.getElementById("depthMap").width = 0;
     document.getElementById("depthMap").height = 0;
     statusData.depthComputed = false;
+    document.getElementById("downloadDepth").classList.add("disabledButton");
+    document.getElementById("downloadStereoLeft").classList.add("disabledButton");
+    document.getElementById("downloadStereo").classList.add("disabledButton");
+    document.getElementById("downloadStereoRight").classList.add("disabledButton");
+    document.getElementById("downloadAnaglyph").classList.add("disabledButton");
     return drawDepthMapAsync().then(() => {
         refreshEyes();
     });
@@ -107,6 +119,10 @@ function refreshEyes() {
     document.getElementById("rightImage").width = 0;
     document.getElementById("rightImage").height = 0;
     statusData.eyesComputed = false;
+    document.getElementById("downloadStereoLeft").classList.add("disabledButton");
+    document.getElementById("downloadStereo").classList.add("disabledButton");
+    document.getElementById("downloadStereoRight").classList.add("disabledButton");
+    document.getElementById("downloadAnaglyph").classList.add("disabledButton");
     return drawEyesAsync().then(() => {
         refreshAnaglyph();
     });
@@ -144,6 +160,66 @@ document.getElementById("compute").addEventListener("mousedown", function (e) {
         computeAsync();
     }
 });
+
+document.getElementById("downloadStacked").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadStacked").classList.contains("disabledButton")) {
+        downloadCanvasPng(mainCanvas, "stacked");
+    }
+});
+
+document.getElementById("downloadDepth").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadDepth").classList.contains("disabledButton")) {
+        downloadCanvasPng(document.getElementById("depthMap"), "depth");
+    }
+});
+
+document.getElementById("downloadStereo").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadStereo").classList.contains("disabledButton")) {
+        let combinedCanvas = new OffscreenCanvas(mainCanvas.width * 2, mainCanvas.height);
+        let combinedCtx = combinedCanvas.getContext("2d");
+        combinedCanvas.width = mainCanvas.width * 2;
+        combinedCanvas.height = mainCanvas.height;
+        combinedCtx.drawImage(document.getElementById("leftImage"), 0, 0, mainCanvas.width, mainCanvas.height);
+        combinedCtx.drawImage(document.getElementById("rightImage"), mainCanvas.width, 0, mainCanvas.width, mainCanvas.height);
+        downloadCanvasPng(combinedCanvas, "stereo_combined");
+    }
+});
+
+document.getElementById("downloadStereoLeft").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadStereoLeft").classList.contains("disabledButton")) {
+        downloadCanvasPng(document.getElementById("leftImage"), "stereo_left");
+    }
+});
+
+document.getElementById("downloadStereoRight").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadStereoRight").classList.contains("disabledButton")) {
+        downloadCanvasPng(document.getElementById("rightImage"), "stereo_right");
+    }
+});
+
+document.getElementById("downloadAnaglyph").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("downloadAnaglyph").classList.contains("disabledButton")) {
+        downloadCanvasPng(document.getElementById("anaglyph"), "anaglyph");
+    }
+});
+
+function downloadCanvasPng(canvas, filename) {
+    new Promise((resolve, reject) => {
+        if (typeof canvas.toDataURL !== "function") {
+            canvas.convertToBlob().then((blob) => {
+                resolve(URL.createObjectURL(blob));
+            });
+        } else {
+            resolve(canvas.toDataURL("image/png"));
+        }
+    }).then((url) => {
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = filename + ".png";
+        a.click();
+        a.remove();
+    });
+}
 
 function computeAsync() {
     return new Promise((resolve, reject) => {
@@ -441,6 +517,7 @@ function drawDepthMap() {
     depthMapCtx.drawImage(originalDepthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
     renormalizeDepthMap(depthMapCtx);
     statusData.depthComputed = true;
+    document.getElementById("downloadDepth").classList.remove("disabledButton");
 }
 
 function drawAnaglyphsAsync() {
@@ -461,9 +538,13 @@ function drawEyesAsync() {
             drawLoadingStatus(document.getElementById("leftImage"), mainCanvas.width, mainCanvas.height);
             setTimeout(() => {
                 drawEye(1.0, document.getElementById("leftImage"));
+                document.getElementById("downloadStereoLeft").classList.remove("disabledButton");
                 drawLoadingStatus(document.getElementById("rightImage"), mainCanvas.width, mainCanvas.height);
                 setTimeout(() => {
                     drawEye(-1.0, document.getElementById("rightImage"));
+                    document.getElementById("downloadStereoRight").classList.remove("disabledButton");
+                    statusData.eyesComputed = true;
+                    document.getElementById("downloadStereo").classList.remove("disabledButton");
                     resolve();
                 }, 0);
             }, 0);
@@ -551,6 +632,7 @@ function drawAnaglyph() {
     }
     anaglyphCtx.putImageData(anaglyphData, 0, 0);
     statusData.anaglyphComputed = true;
+    document.getElementById("downloadAnaglyph").classList.remove("disabledButton");
 }
 
 function drawStacked() {
@@ -566,6 +648,9 @@ function drawStacked() {
             let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
             setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0), resolve), 0);
         }), 0);
+    }).then(() => {
+        statusData.stackComputed = true;
+        document.getElementById("downloadStacked").classList.remove("disabledButton");
     });
 }
 
