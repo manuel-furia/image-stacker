@@ -32,11 +32,11 @@ let anaglyphSettings = {
         [0.0, 1.0, 0.0],
         [0.0, 0.0, 1.0]
     ],
-    leftGamma: 1.3,
-    rightGamma: 1.0,
-    depthScale: 20.0,
+    leftGamma: 1.4,
+    rightGamma: 0.9,
+    depthScale: 45.0,
     depthSmooth: 2.0,
-    depthOffset: -1.0,
+    depthOffset: -0.75,
 }
 
 let stackingSettings = {
@@ -59,6 +59,68 @@ let settingsUI = SettingHandler(
 
 settingsUI.updateUIValues();
 settingsUI.registerUIEvents();
+
+clearImages();
+
+document.getElementById("newStack").addEventListener("mousedown", clearImages);
+
+function clearImages() {
+    resetAll();
+    stackingData.imageSet.length = 0;
+    stackingData.fusionDepth.length = 0;
+    stackingData.maximumDepth = 0;
+    updateImagesDiv();
+    imagesDiv.innerText = "Click here to load images";
+    imagesDiv.addEventListener("mousedown", importImagesListener);
+}
+
+document.getElementById("loadSettings").addEventListener("mousedown", function (e) {
+    let settingsLoader = document.createElement("input");
+    settingsLoader.type = "file";
+    settingsLoader.accept = ".stackersettings";
+    settingsLoader.addEventListener("change", loadSettings, false);
+    settingsLoader.click();
+    settingsLoader.remove();
+});
+
+function loadSettings(e) {
+    let files = e.target.files;
+    if (files.length === 0) {
+        return;
+    }
+    let file = files[0];
+    let reader = new FileReader();
+    reader.onload = function (e) {
+        let settings = JSON.parse(e.target.result);
+        copyIntoObject(stackingSettings, settings.stackingSettings);
+        copyIntoObject(anaglyphSettings, settings.anaglyphSettings);
+        settingsUI.updateUIValues();
+    }
+    reader.readAsText(file);
+}
+
+function copyIntoObject(destination, source) {
+    for (let key in source) {
+        if (source.hasOwnProperty(key)) {
+            destination[key] = source[key];
+        }
+    }
+}
+
+document.getElementById("saveSettings").addEventListener("mousedown", function (e) {
+    let settings = {
+        stackingSettings: stackingSettings,
+        anaglyphSettings: anaglyphSettings
+    };
+    let settingsString = JSON.stringify(settings);
+    let blob = new Blob([settingsString], {type: "text/plain;charset=utf-8"});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "saved.stackersettings";
+    a.click();
+    a.remove();
+});
+
 
 function resetAll() {
     stackingData.imageSet.forEach((image) => {
@@ -132,7 +194,7 @@ function toStdSize(size, imageWidth) {
     return size * imageWidth / STD_WIDTH;
 }
 
-imagesDiv.addEventListener("mousedown", function (e) {
+function importImagesListener() {
     let imageLoader = document.createElement("input");
     imageLoader.type = "file";
     imageLoader.accept = "image/*";
@@ -141,7 +203,7 @@ imagesDiv.addEventListener("mousedown", function (e) {
     imageLoader.click();
     imageLoader.remove();
     imagesDiv.removeEventListener("mousedown", arguments.callee);
-});
+}
 
 function disableCompute() {
     document.getElementById("compute").classList.add("disabledButton");
@@ -270,11 +332,6 @@ function loadImages(files) {
             img.src = URL.createObjectURL(files[i]);
         }
     });
-}
-
-function clearImages() {
-    stackingData.imageSet = [];
-    imagesDiv.innerHTML = "";
 }
 
 function removeImage(image) {
