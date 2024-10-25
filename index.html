@@ -134,6 +134,21 @@
         </div>
         <canvas id="anaglyph"></canvas>
         <div class="disabledButton buttonContainer" id="downloadAnaglyph">Download Anaglyph</div>
+        <div class="settingsGroup" id="animationSettings">
+            <h2>Animation Settings</h2>
+            <div class="settingsGrid">
+                <div>
+                    <label for="animationStrength">Animation Strength</label>
+                    <input class="settingsValue" type="range" id="animationStrength" min="0" max="100" value="50">
+                </div>
+                <div>
+                    <label for="animationSpeed">Animation Speed</label>
+                    <input class="settingsValue" type="range" id="animationSpeed" min="25" max="400" value="100">
+                </div>
+        </div>
+        <div class="disabledButton buttonContainer" id="computeAnimation">Compute Animation</div>
+        <canvas id="animationCanvas" hidden></canvas>
+        <div class="disabledButton buttonContainer" id="downloadAnimation">Download Animation</div>
         <script src="settings_ui.js"></script>
         <script src="index.js"></script>
     </body>

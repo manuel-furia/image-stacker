@@ -1,4 +1,4 @@
-function SettingHandler(stackingSettings, anaglyphSettings, refreshAll, refreshDepth, refreshEyes, refreshAnaglyph) {
+function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, refreshAll, refreshDepth, refreshEyes, refreshAnaglyph) {
 
     function clamp(min, max, value) {
         return Math.min(Math.max(min, +value), max);
@@ -153,6 +153,12 @@ function SettingHandler(stackingSettings, anaglyphSettings, refreshAll, refreshD
                 anaglyphSettings.depthSmooth = clamp(0, 100, this.value);
                 refreshDepth();
             });
+            document.getElementById("animationSpeed").addEventListener("change", function() {
+                animationSettings.speed = clamp(25, 200, this.value) / 100.0;
+            });
+            document.getElementById("animationStrength").addEventListener("change", function() {
+                animationSettings.strength = clamp(0, 100, this.value);
+            });
         },
         updateUIValues: function() {
             document.getElementById("invertImages").checked = stackingSettings.invertImages;
@@ -175,6 +181,8 @@ function SettingHandler(stackingSettings, anaglyphSettings, refreshAll, refreshD
             document.getElementById("depthScale").value = anaglyphSettings.depthScale;
             document.getElementById("depthOffset").value = anaglyphSettings.depthOffset * 100.0;
             document.getElementById("depthSmooth").value = anaglyphSettings.depthSmooth;
+            document.getElementById("animationSpeed").value = animationSettings.speed * 100.0;
+            document.getElementById("animationStrength").value = animationSettings.strength;
         },
         disableAll: function() {
             let settings = document.getElementsByClassName("settingsValue");

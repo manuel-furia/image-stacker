@@ -1,6 +1,9 @@
 const STD_WIDTH = 1920;
 let mainCanvas = document.getElementById("canvas");
-let mainCanvasCtx = mainCanvas.getContext("2d")
+let mainCanvasCtx = mainCanvas.getContext("2d");
+
+let animationCanvas = document.getElementById("animationCanvas");
+let animationCtx = animationCanvas.getContext("2d");
 
 let imagesDiv = document.getElementById("images");
 
@@ -48,9 +51,23 @@ let stackingSettings = {
     invertImages: false,
 }
 
+let animationSettings = {
+    speed: 1.0,
+    strength: 45.0,
+}
+
+let animationCaptureStatus = {
+    computing: false,
+    currentFrame: 0,
+    targetFrames: 0,
+    frames: [],
+    result: null,
+}
+
 let settingsUI = SettingHandler(
     stackingSettings,
     anaglyphSettings,
+    animationSettings,
     resetAll,
     refreshDepth,
     refreshEyes,
@@ -205,14 +222,14 @@ function importImagesListener() {
     imagesDiv.removeEventListener("mousedown", arguments.callee);
 }
 
-function disableCompute() {
-    document.getElementById("compute").classList.add("disabledButton");
-    document.getElementById("compute").classList.remove("focusButton");
+function disableCompute(buttonId="compute") {
+    document.getElementById(buttonId).classList.add("disabledButton");
+    document.getElementById(buttonId).classList.remove("focusButton");
 }
 
-function enableCompute() {
-    document.getElementById("compute").classList.remove("disabledButton");
-    document.getElementById("compute").classList.add("focusButton");
+function enableCompute(buttonId="compute") {
+    document.getElementById(buttonId).classList.remove("disabledButton");
+    document.getElementById(buttonId).classList.add("focusButton");
 }
 
 document.getElementById("compute").addEventListener("mousedown", function (e) {
@@ -223,9 +240,29 @@ document.getElementById("compute").addEventListener("mousedown", function (e) {
     }
 });
 
+document.getElementById("computeAnimation").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("computeAnimation").classList.contains("disabledButton")) {
+        disableCompute("computeAnimation");
+        document.getElementById("downloadAnimation").classList.add("disabledButton");
+        document.getElementById("animationSettings").scrollIntoView();
+        document.getElementById("computeAnimation").innerText = "Computing...";
+        animate3d();
+    }
+});
+
 document.getElementById("downloadStacked").addEventListener("mousedown", function (e) {
     if (!document.getElementById("downloadStacked").classList.contains("disabledButton")) {
         downloadCanvasPng(mainCanvas, "stacked");
+    }
+});
+
+document.getElementById("downloadAnimation").addEventListener("mousedown", function (e) {
+    if (animationCaptureStatus.result !== null) {
+        let a = document.createElement("a");
+        a.href = animationCaptureStatus.result;
+        a.download = "animation.webm";
+        a.click();
+        a.remove();
     }
 });
 
@@ -283,6 +320,57 @@ function downloadCanvasPng(canvas, filename) {
     });
 }
 
+function animate3d() {
+    if (animationCaptureStatus.computing === false) {
+        animationCaptureStatus.targetFrames = 30 / animationSettings.speed;
+        animationCaptureStatus.frames = [];
+        animationCaptureStatus.computing = true;
+        animationCaptureStatus.result = null;
+    }
+    if (animationCaptureStatus.frames.length < animationCaptureStatus.targetFrames) {
+        drawAnimationFrame();
+        requestAnimationFrame(animate3d);
+    } else {
+        animationCaptureStatus.computing = false;
+        setTimeout(captureAnimation, 500);
+    }
+}
+
+function animate() {
+    animationCtx.putImageData(animationCaptureStatus.frames[animationCaptureStatus.currentFrame%animationCaptureStatus.frames.length], 0, 0);
+    animationCaptureStatus.currentFrame++;
+}
+
+function captureAnimation() {
+    let videoStream = animationCanvas.captureStream(30);
+    let mediaRecorder = new MediaRecorder(videoStream, { mimeType: "video/webm" , videoBitsPerSecond: 24000000});
+    let data = [];
+    mediaRecorder.ondataavailable = function (e) {
+        data.push(e.data);
+    };
+    mediaRecorder.onstop = function (e) {
+        let blob = new Blob(data, { type: "video/webm" });
+        animationCaptureStatus.result = URL.createObjectURL(blob);
+    };
+    animationCaptureStatus.currentFrame = 0;
+    clearInterval(animate);
+    setInterval(animate, 1000 / 30);
+    mediaRecorder.start();
+    setTimeout(() => {
+        mediaRecorder.stop();
+        document.getElementById("computeAnimation").innerText = "Compute Animation";
+        enableCompute("computeAnimation");
+        document.getElementById("downloadAnimation").classList.remove("disabledButton");
+    }, 1000 / animationSettings.speed);
+}
+
+function drawAnimationFrame() {
+    const duration = 30 / animationSettings.speed;
+    const time = animationCaptureStatus.frames.length / duration;
+    drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
+    animationCaptureStatus.frames.push(animationCtx.getImageData(0, 0, animationCtx.canvas.width, animationCtx.canvas.height));
+}
+
 function computeAsync() {
     return new Promise((resolve, reject) => {
         setTimeout(() => {
@@ -293,6 +381,7 @@ function computeAsync() {
                             enableCompute();
                             resolve();
                         });
+                        enableCompute("computeAnimation");
                     });
                 });
             });
@@ -612,7 +701,7 @@ function drawEyesAsync() {
     });
 }
 
-function drawEye(sign, canvasObject) {
+function drawEye(factor, canvasObject) {
     let depthMapCanvas = document.getElementById("depthMap");
     let depthMapCtx = depthMapCanvas.getContext("2d");
     let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
@@ -623,12 +712,12 @@ function drawEye(sign, canvasObject) {
     let imageData = context.createImageData(mainCanvas.width, mainCanvas.height);
     let data = imageData.data;
     let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-    let dF = toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+    let dF = factor * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
     let dO = anaglyphSettings.depthOffset;
     for (let i = 0; i < canvasObject.height; i++) {
         for (let j = 0; j < canvasObject.width; j++) {
-            let depth = (depthData[(i * mainCanvas.width + j) * 4] / 255) * dF + dF * dO;
-            let x = (j + sign * depth) | 0;
+            let depth = dF * ((depthData[(i * mainCanvas.width + j) * 4] / 255) + dO);
+            let x = (j + depth) | 0;
             let y = i;
             if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
                 for (let k = 0; k < 3; k++) {
