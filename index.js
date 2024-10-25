@@ -340,6 +340,9 @@ function removeImage(image) {
         stackingData.imageSet.splice(index, 1);
         updateImagesDiv();
     }
+    if (stackingData.imageSet.length === 0) {
+        clearImages();
+    }
 }
 
 function addImage(image) {
