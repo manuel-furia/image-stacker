@@ -57,7 +57,8 @@ let anaglyphSettings = {
     rightGamma: 0.9,
     depthScale: 45.0,
     depthSmooth: 2.0,
-    depthOffset: -0.75,
+    depthOffset: -1,
+    depthGamma: 1.0,
 }
 
 let stackingSettings = {
@@ -71,7 +72,7 @@ let stackingSettings = {
 
 let animationSettings = {
     speed: 1.0,
-    strength: 45.0,
+    strength: 25.0,
 }
 
 let animationCaptureStatus = {
@@ -80,6 +81,7 @@ let animationCaptureStatus = {
     targetFrames: 0,
     frames: [],
     result: null,
+    animateId: null,
 }
 
 let settingsUI = SettingHandler(
@@ -97,7 +99,11 @@ settingsUI.registerUIEvents();
 
 clearImages();
 
-document.getElementById("newStack").addEventListener("mousedown", clearImages);
+document.getElementById("newStack").addEventListener("mousedown", function (e) {
+    if (!document.getElementById("newStack").classList.contains("disabledButton")) {
+        clearImages();
+    }
+});
 
 function clearImages() {
     resetAll();
@@ -105,8 +111,18 @@ function clearImages() {
     stackingData.fusionDepth.length = 0;
     stackingData.maximumDepth = 0;
     updateImagesDiv();
-    imagesDiv.innerText = "Click here to load images";
+    imagesDiv.innerText = "Click here to load images to stack";
     imagesDiv.addEventListener("mousedown", importImagesListener);
+    document.getElementById("stackingSettings").style.display = "";
+    document.getElementById("compute").style.display = "";
+    document.getElementById("orModeDiv").style.display = "";
+    document.getElementById("images").style.display = "";
+    document.getElementById("premadeMode").style.display = "";
+    document.getElementById("downloadStacked").style.display = "";
+    document.getElementById("depthMapSettings").style.display = "";
+    document.getElementById("downloadDepth").style.display = "";
+    document.getElementById("loadStack").classList.add("invisible");
+    document.getElementById("loadDepthMap").classList.add("invisible");
 }
 
 document.getElementById("loadSettings").addEventListener("mousedown", function (e) {
@@ -117,6 +133,69 @@ document.getElementById("loadSettings").addEventListener("mousedown", function (
     settingsLoader.click();
     settingsLoader.remove();
 });
+
+document.getElementById("loadStack").addEventListener("mousedown", function (e) {
+    let imageLoader = document.createElement("input");
+    imageLoader.type = "file";
+    imageLoader.accept = "image/*";
+    imageLoader.multiple = false;
+    imageLoader.addEventListener("change", handleLoadCustomStack, false);
+    imageLoader.click();
+    imageLoader.remove();
+});
+
+document.getElementById("loadDepthMap").addEventListener("mousedown", function (e) {
+    let depthMapLoader = document.createElement("input");
+    depthMapLoader.type = "file";
+    depthMapLoader.accept = "image/*";
+    depthMapLoader.multiple = false;
+    depthMapLoader.addEventListener("change", handleLoadCustomDepth, false);
+    depthMapLoader.click();
+    depthMapLoader.remove();
+});
+
+function handleLoadCustomStack(e) {
+    let files = e.target.files;
+    if (files.length === 0) {
+        return;
+    }
+    loadIntoCanvas(files[0], mainCanvas).then(() => {
+        document.getElementById("loadDepthMap").classList.remove("disabledButton");
+        if (depthMap.width !== 0) {
+            refreshEyes();
+        }
+    });
+}
+
+function handleLoadCustomDepth(e) {
+    if (document.getElementById("loadDepthMap").classList.contains("disabledButton")) {
+        return;
+    }
+    let files = e.target.files;
+    if (files.length === 0) {
+        return;
+    }
+    loadIntoCanvas(files[0], document.getElementById("depthMap")).then(() => {
+        renormalizeDepthMap(document.getElementById("depthMap").getContext("2d"));
+    }).then(() => {
+        if (mainCanvas.width !== 0) {
+            refreshEyes();
+        }
+    });
+}
+
+function loadIntoCanvas(file, canvas) {
+    return new Promise((resolve, reject) => {
+        let img = new Image();
+        img.onload = function () {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.getContext("2d").drawImage(img, 0, 0, img.width, img.height);	
+            resolve(img);
+        }
+        img.src = URL.createObjectURL(file);
+    });
+}
 
 function loadSettings(e) {
     let files = e.target.files;
@@ -156,20 +235,35 @@ document.getElementById("saveSettings").addEventListener("mousedown", function (
     a.remove();
 });
 
+document.getElementById("premadeMode").addEventListener("mousedown", function (e) {
+    document.getElementById("stackingSettings").style.display = "none";
+    document.getElementById("compute").style.display = "none";
+    document.getElementById("orModeDiv").style.display = "none";
+    document.getElementById("images").style.display = "none";
+    document.getElementById("premadeMode").style.display = "none";
+    document.getElementById("downloadStacked").style.display = "none";
+    document.getElementById("depthMapSettings").style.display = "none";
+    document.getElementById("downloadDepth").style.display = "none";
+    document.getElementById("loadStack").classList.remove("invisible");
+    document.getElementById("loadDepthMap").classList.remove("invisible");
+    document.getElementById("loadDepthMap").classList.add("disabledButton");
+});
+
 
 function resetAll() {
     stackingData.imageSet.forEach((image) => {
         image.differenceOfGaussianStack = null;
     });
     updateImagesDiv();
+    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    mainCanvas.width = 0;
+    mainCanvas.height = 0;
     if (!statusData.stackComputed) {
         return;
     }
+    resetAnimation();
     stackingData.fusionDepth = [];
     stackingData.maximumDepth = 0;
-    mainCanvas.width = 0;
-    mainCanvas.height = 0;
-    mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
     document.getElementById("depthMap").width = 0;
     document.getElementById("depthMap").height = 0;
     document.getElementById("leftImage").width = 0;
@@ -188,12 +282,31 @@ function resetAll() {
     enableCompute();
 }
 
+function resetAnimation() {
+    animationCaptureStatus.result = null;
+    animationCaptureStatus.frames = [];
+    animationCaptureStatus.computing = false;
+    animationCaptureStatus.currentFrame = 0;
+    animationCaptureStatus.targetFrames = 0;
+    if (animationCaptureStatus.animateId !== null) {
+        clearInterval(animationCaptureStatus.animateId);
+        animationCaptureStatus.animateId = null;
+    }
+    document.getElementById("animationCanvas").width = 0;
+    document.getElementById("animationCanvas").height = 0;
+    document.getElementById("downloadAnimation").classList.add("disabledButton");
+    document.getElementById("computeAnimation").innerText = "Compute Animation";
+    enableCompute("computeAnimation");
+}
+
 function refreshAnaglyph() {
     document.getElementById("anaglyph").width = 0;
     document.getElementById("anaglyph").height = 0;
     statusData.anaglyphComputed = false;
     document.getElementById("downloadAnaglyph").classList.add("disabledButton");
-    return drawAnaglyphsAsync();
+    return drawAnaglyphsAsync().then(() => {
+        enableCompute("computeAnimation");
+    });
 }
 
 function refreshDepth() {
@@ -230,6 +343,8 @@ function toStdSize(size, imageWidth) {
 }
 
 function importImagesListener() {
+    document.getElementById("premadeMode").style.display = "none";
+    document.getElementById("orModeDiv").style.display = "none";
     let imageLoader = document.createElement("input");
     imageLoader.type = "file";
     imageLoader.accept = "image/*";
@@ -260,7 +375,9 @@ document.getElementById("compute").addEventListener("mousedown", function (e) {
 
 document.getElementById("computeAnimation").addEventListener("mousedown", function (e) {
     if (!document.getElementById("computeAnimation").classList.contains("disabledButton")) {
+        disableCompute();
         disableCompute("computeAnimation");
+        disableCompute("newStack");
         document.getElementById("downloadAnimation").classList.add("disabledButton");
         document.getElementById("animationSettings").scrollIntoView();
         document.getElementById("computeAnimation").innerText = "Computing...";
@@ -355,13 +472,15 @@ function animate3d() {
 }
 
 function animate() {
-    animationCtx.putImageData(animationCaptureStatus.frames[animationCaptureStatus.currentFrame%animationCaptureStatus.frames.length], 0, 0);
-    animationCaptureStatus.currentFrame++;
+    if (animationCaptureStatus.animateId !== null) {
+        animationCtx.putImageData(animationCaptureStatus.frames[animationCaptureStatus.currentFrame%animationCaptureStatus.frames.length], 0, 0);
+        animationCaptureStatus.currentFrame++;
+    }
 }
 
 function captureAnimation() {
     let videoStream = animationCanvas.captureStream(30);
-    let mediaRecorder = new MediaRecorder(videoStream, { mimeType: "video/webm" , videoBitsPerSecond: 24000000});
+    let mediaRecorder = new MediaRecorder(videoStream, { mimeType: "video/webm" , videoBitsPerSecond: 48000000});
     let data = [];
     mediaRecorder.ondataavailable = function (e) {
         data.push(e.data);
@@ -371,15 +490,25 @@ function captureAnimation() {
         animationCaptureStatus.result = URL.createObjectURL(blob);
     };
     animationCaptureStatus.currentFrame = 0;
-    clearInterval(animate);
-    setInterval(animate, 1000 / 30);
-    mediaRecorder.start();
+    if (animationCaptureStatus.animateId !== null) {
+        clearInterval(animationCaptureStatus.animateId);
+    }
+    animationCaptureStatus.animateId = setInterval(animate, 1000 / 30);
+    settingsUI.disableAll();
+
     setTimeout(() => {
-        mediaRecorder.stop();
-        document.getElementById("computeAnimation").innerText = "Compute Animation";
-        enableCompute("computeAnimation");
-        document.getElementById("downloadAnimation").classList.remove("disabledButton");
-    }, 1000 / animationSettings.speed);
+        mediaRecorder.start();
+        document.getElementById("computeAnimation").innerText = "Recording " + ((8 / animationSettings.speed) | 0) + " seconds...";
+        setTimeout(() => {
+            mediaRecorder.stop();
+            document.getElementById("computeAnimation").innerText = "Compute Animation";
+            enableCompute();
+            enableCompute("computeAnimation");
+            enableCompute("newStack");
+            document.getElementById("downloadAnimation").classList.remove("disabledButton");
+            settingsUI.enableAll();
+        }, 8 * 1000 / animationSettings.speed);
+    }, 2 * 1000 / animationSettings.speed);
 }
 
 function drawAnimationFrame() {
@@ -673,13 +802,15 @@ function drawDepthMap() {
     for (let i = 0; i < depthMapCanvas.height; i++) {
         for (let j = 0; j < depthMapCanvas.width; j++) {
             let depth = stackingData.fusionDepth[i][j] / stackingData.maximumDepth;
+            let gammaCorrectedDepth = gammaCorrection(depth, anaglyphSettings.depthGamma, 1.0);
             for (let k = 0; k < 3; k++) {
-                depthMap[(i * mainCanvas.width + j) * 4 + k] = (depth * 255) | 0;
+                depthMap[(i * mainCanvas.width + j) * 4 + k] = (gammaCorrectedDepth * 255) | 0;
             }
             depthMap[(i * mainCanvas.width + j) * 4 + 3] = 255;
         }
     }
     originalDepthMapCtx.putImageData(depthMapData, 0, 0);
+    depthMapCtx.clearRect(0, 0, depthMapCanvas.width, depthMapCanvas.height);
     depthMapCtx.filter = "blur(" + (toStdSize(anaglyphSettings.depthSmooth, mainCanvas.width)) + "px)";
     depthMapCtx.drawImage(originalDepthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
     renormalizeDepthMap(depthMapCtx);
@@ -748,8 +879,8 @@ function drawEye(factor, canvasObject) {
     context.putImageData(imageData, 0, 0);
 }
 
-function gammaCorrection(intensity, gamma) {
-    return Math.pow(intensity / 255, 1 / gamma) * 255;
+function gammaCorrection(intensity, gamma, scale=255) {
+    return Math.pow(intensity / scale, 1 / gamma) * scale;
 }
 
 function vectorMultiply(matrix, vector) {

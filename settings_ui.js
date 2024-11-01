@@ -159,6 +159,10 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
                 anaglyphSettings.rightGamma = clamp(0.1, 3.0, this.value);
                 refreshAnaglyph();
             });
+            document.getElementById("depthGamma").addEventListener("change", function() {
+                anaglyphSettings.depthGamma = Math.pow(2, clamp(-6.0, 6.0, this.value));
+                refreshDepth();
+            });
             document.getElementById("depthScale").addEventListener("change", function() {
                 anaglyphSettings.depthScale = clamp(0, 200, this.value);
                 refreshEyes();
@@ -196,6 +200,7 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             }
             document.getElementById("anaglyphLeftGamma").value = anaglyphSettings.leftGamma;
             document.getElementById("anaglyphRightGamma").value = anaglyphSettings.rightGamma;
+            document.getElementById("depthGamma").value = Math.log2(anaglyphSettings.depthGamma);
             document.getElementById("depthScale").value = anaglyphSettings.depthScale;
             document.getElementById("depthOffset").value = anaglyphSettings.depthOffset * 100.0;
             document.getElementById("depthSmooth").value = anaglyphSettings.depthSmooth;

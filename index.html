@@ -29,8 +29,13 @@
             <div class="oneThird buttonContainer" id="loadSettings">Load Settings</div>
             <div class="oneThird buttonContainer" id="saveSettings">Save Settings</div>
         </div>
+        <br>
         <div class="buttonContainer" id="images">
-            Click here to load images
+            Click here to load images to stack
+        </div>
+        <div class="ordiv" id="orModeDiv">OR</div>
+        <div class="buttonContainer" id="premadeMode">
+            Click here to use a premade stack and depth map
         </div>
         <div class="settingsGroup" id="stackingSettings">
             <h2>Stacking Settings</h2>
@@ -62,7 +67,10 @@
             </div>
         </div>
         <div class="disabledButton buttonContainer" id="compute">Compute</div>
-        <canvas id="canvas"></canvas>
+        <div class="buttonContainer invisible" id="loadStack">
+            Load stack
+        </div>
+        <canvas id="canvas" width="0" height="0"></canvas>
         <div class="disabledButton buttonContainer" id="downloadStacked">Download Stacked</div>
         <div class="settingsGroup" id="depthMapSettings">
             <h2>Depth settings</h2>
@@ -71,9 +79,16 @@
                     <label for="depthSmooth">Depth Smooth</label>
                     <input class="settingsValue" type="range" id="depthSmooth" min="0" max="100" value="0">
                 </div>
+                <div>
+                    <label for="depthGamma">Gamma</label>
+                    <input class="settingsValue" type="range" id="depthGamma" min="-6" max="6" value="0" step="0.1">
+                </div>
             </div>
         </div>
-        <canvas id="depthMap"></canvas>
+        <div class="buttonContainer invisible" id="loadDepthMap">
+            Load Depth Map
+        </div>
+        <canvas id="depthMap" width="0" height="0"></canvas>
         <div class="disabledButton buttonContainer" id="downloadDepth">Download Depth Map</div>
         <div class="settingsGroup" id="threeDSettings">
             <h2>3D Settings</h2>
@@ -89,8 +104,8 @@
             </div>
         </div>
         <div id="stereoImages">
-            <canvas id="leftImage"></canvas>
-            <canvas id="rightImage"></canvas>
+            <canvas id="leftImage" width="0" height="0"></canvas>
+            <canvas id="rightImage" width="0" height="0"></canvas>
         </div>
         <div class="thirdContainer">
             <div class="oneThird disabledButton buttonContainer" id="downloadStereoLeft">Download Left</div>
@@ -149,7 +164,7 @@
                 </div>
             </div>
         </div>
-        <canvas id="anaglyph"></canvas>
+        <canvas id="anaglyph" width="0" height="0"></canvas>
         <div class="disabledButton buttonContainer" id="downloadAnaglyph">Download Anaglyph</div>
         <div class="settingsGroup" id="animationSettings">
             <h2>Animation Settings</h2>
@@ -164,7 +179,7 @@
                 </div>
         </div>
         <div class="disabledButton buttonContainer" id="computeAnimation">Compute Animation</div>
-        <canvas id="animationCanvas" hidden></canvas>
+        <canvas id="animationCanvas" width="0" height="0" hidden></canvas>
         <div class="disabledButton buttonContainer" id="downloadAnimation">Download Animation</div>
         <script src="settings_ui.js"></script>
         <script src="index.js"></script>
