@@ -33,7 +33,7 @@ body {
 canvas {
     max-width: 80vw;
     width: 80vw;
-    min-width: 80vh;
+    min-width: 80vw;
     min-height: 10vh;
     margin: 0 auto;
     display: block;
@@ -48,9 +48,10 @@ canvas {
 #leftImage, #rightImage {
     max-width: 40vw;
     width: 40vw;
-    min-height: 20vh;
+    min-width: 40vw;
+    min-height: 20vw;
     border: 1px solid #000000;
-    margin: 0;
+    margin: auto;
 }
 
 .buttonContainer {
@@ -61,7 +62,7 @@ canvas {
     align-items: center;
     margin: 8px auto 8px auto;
     max-width: 80vw;
-    min-width: 80vh;
+    min-width: 80vw;
     min-height: 10vh;
     color: white;
     font-size: 32px;
@@ -91,7 +92,7 @@ h1 {
     padding: 0;
 }
 
-.thirdContainer {
+.flexContainer {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -100,9 +101,17 @@ h1 {
     margin: 8px auto 8px auto;
 }
 
+.oneHalf {
+    display: inline-flex;
+    width: 38vw;
+    min-width: 38vw;
+    margin: 0;
+}
+
 .oneThird {
+    display: inline-flex;
     width: 26vw;
-    min-width: 26vh;
+    min-width: 26vw;
     margin: 0;
 }
 
@@ -216,4 +225,12 @@ input[type="range"] {
 
 .invisible {
     display: none;
+}
+
+.centeredBlock {
+    position: relative;
+    margin-left: 0;
+    margin-right: 0;
+    left: 50%;
+    transform: translateX(-50%);
 }

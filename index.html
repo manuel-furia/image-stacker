@@ -24,20 +24,20 @@
     </head>
     <body>
         <h1>Image Stacker v1.0</h1>
-        <div class="thirdContainer">
+        <div class="flexContainer centeredBlock">
             <div class="oneThird buttonContainer" id="newStack">New Stack</div>
             <div class="oneThird buttonContainer" id="loadSettings">Load Settings</div>
             <div class="oneThird buttonContainer" id="saveSettings">Save Settings</div>
         </div>
         <br>
-        <div class="buttonContainer" id="images">
+        <div class="buttonContainer centeredBlock" id="images">
             Click here to load images to stack
         </div>
-        <div class="ordiv" id="orModeDiv">OR</div>
-        <div class="buttonContainer" id="premadeMode">
+        <div class="ordiv centeredBlock" id="orModeDiv">OR</div>
+        <div class="buttonContainer centeredBlock" id="premadeMode">
             Click here to use a premade stack and depth map
         </div>
-        <div class="settingsGroup" id="stackingSettings">
+        <div class="settingsGroup centeredBlock" id="stackingSettings">
             <h2>Stacking Settings</h2>
             <div class="settingsGrid">
                 <div>
@@ -66,13 +66,13 @@
                 </div>
             </div>
         </div>
-        <div class="disabledButton buttonContainer" id="compute">Compute</div>
-        <div class="buttonContainer invisible" id="loadStack">
+        <div class="disabledButton buttonContainer centeredBlock" id="compute">Compute</div>
+        <div class="buttonContainer invisible centeredBlock" id="loadStack">
             Load stack
         </div>
-        <canvas id="canvas" width="0" height="0"></canvas>
-        <div class="disabledButton buttonContainer" id="downloadStacked">Download Stacked</div>
-        <div class="settingsGroup" id="depthMapSettings">
+        <canvas class="centeredBlock" id="canvas" width="0" height="0"></canvas>
+        <div class="disabledButton buttonContainer centeredBlock" id="downloadStacked">Download Stacked</div>
+        <div class="settingsGroup centeredBlock" id="depthMapSettings">
             <h2>Depth settings</h2>
             <div class="settingsGrid">
                 <div>
@@ -85,12 +85,12 @@
                 </div>
             </div>
         </div>
-        <div class="buttonContainer invisible" id="loadDepthMap">
+        <div class="buttonContainer invisible centeredBlock" id="loadDepthMap">
             Load Depth Map
         </div>
         <canvas id="depthMap" width="0" height="0"></canvas>
-        <div class="disabledButton buttonContainer" id="downloadDepth">Download Depth Map</div>
-        <div class="settingsGroup" id="threeDSettings">
+        <div class="disabledButton buttonContainer centeredBlock" id="downloadDepth">Download Depth Map</div>
+        <div class="settingsGroup centeredBlock" id="threeDSettings">
             <h2>3D Settings</h2>
             <div class="settingsGrid">
                 <div>
@@ -103,16 +103,16 @@
                 </div>
             </div>
         </div>
-        <div id="stereoImages">
-            <canvas id="leftImage" width="0" height="0"></canvas>
-            <canvas id="rightImage" width="0" height="0"></canvas>
+        <div id="stereoImages" class="centeredBlock flexContainer">
+            <canvas id="leftImage" class="oneHalf" width="0" height="0"></canvas>
+            <canvas id="rightImage" class="oneHalf" width="0" height="0"></canvas>
         </div>
-        <div class="thirdContainer">
+        <div class="flexContainer centeredBlock">
             <div class="oneThird disabledButton buttonContainer" id="downloadStereoLeft">Download Left</div>
             <div class="oneThird disabledButton buttonContainer" id="downloadStereo">Download Stereo</div>
             <div class="oneThird disabledButton buttonContainer" id="downloadStereoRight">Download Right</div>
         </div>
-        <div class="settingsGroup" id="anaglyphMatrixSettings">
+        <div class="settingsGroup centeredBlock" id="anaglyphMatrixSettings">
             <h2>Anaglyph Settings</h2>
             <div class="settingsGrid">
                 <div>
@@ -164,9 +164,9 @@
                 </div>
             </div>
         </div>
-        <canvas id="anaglyph" width="0" height="0"></canvas>
-        <div class="disabledButton buttonContainer" id="downloadAnaglyph">Download Anaglyph</div>
-        <div class="settingsGroup" id="animationSettings">
+        <canvas class="centeredBlock" id="anaglyph" width="0" height="0"></canvas>
+        <div class="disabledButton buttonContainer centeredBlock" id="downloadAnaglyph">Download Anaglyph</div>
+        <div class="settingsGroup centeredBlock" id="animationSettings">
             <h2>Animation Settings</h2>
             <div class="settingsGrid">
                 <div>
@@ -177,10 +177,11 @@
                     <label for="animationSpeed">Animation Speed</label>
                     <input class="settingsValue" type="range" id="animationSpeed" min="25" max="400" value="100">
                 </div>
+            </div>
         </div>
-        <div class="disabledButton buttonContainer" id="computeAnimation">Compute Animation</div>
-        <canvas id="animationCanvas" width="0" height="0" hidden></canvas>
-        <div class="disabledButton buttonContainer" id="downloadAnimation">Download Animation</div>
+        <div class="disabledButton buttonContainer centeredBlock" id="computeAnimation">Compute Animation</div>
+        <canvas class="centeredBlock" id="animationCanvas" width="0" height="0" hidden></canvas>
+        <div class="disabledButton buttonContainer centeredBlock" id="downloadAnimation">Download Animation</div>
         <script src="settings_ui.js"></script>
         <script src="index.js"></script>
     </body>
