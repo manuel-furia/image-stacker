@@ -117,14 +117,6 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
                 stackingSettings.sigmaB = stackingSettings.sigmaA * featureScale;
                 refreshAll();
             });
-            document.getElementById("preferBottom").addEventListener("change", function() {
-                stackingSettings.bottomBias = Math.pow(clamp(0, 100, this.value) / 100.0, 4);
-                refreshAll();
-            });
-            document.getElementById("preferTop").addEventListener("change", function() {
-                stackingSettings.topBias = Math.pow(clamp(0, 100, this.value) / 100.0, 4);
-                refreshAll();
-            });
             document.getElementById("anaglyphType").addEventListener("change", function() {
                 if (this.value === "customAnaglyph") {
                     showMatrices(true);
@@ -182,8 +174,6 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             document.getElementById("invertImages").checked = stackingSettings.invertImages;
             document.getElementById("sharpness").value = 100.0 / stackingSettings.sigmaA;
             document.getElementById("featureScale").value = stackingSettings.sigmaB / stackingSettings.sigmaA * 10.0;
-            document.getElementById("preferBottom").value = Math.pow(stackingSettings.bottomBias, 0.25) * 100.0;
-            document.getElementById("preferTop").value = Math.pow(stackingSettings.topBias, 0.25) * 100.0;
             let anaglyphType = findAnaglyphType(anaglyphSettings.leftMatrix, anaglyphSettings.rightMatrix);
             document.getElementById("anaglyphType").value = anaglyphType;
             showMatrices(anaglyphType === "customAnaglyph");

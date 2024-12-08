@@ -64,8 +64,6 @@ let anaglyphSettings = {
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
-    topBias: 0.0,
-    bottomBias: 0.0,
     invertImages: false,
 }
 
@@ -715,11 +713,9 @@ function pickBestImage(x, y) {
     let imageSet = stackingData.imageSet;
 
     for (let i = 0; i < imageSet.length; i++) {
-        let bottomBias = (i === 0) ? (stackingSettings.bottomBias * 255) : 0;
-        let topBias = (i === imageSet.length - 1) ? (stackingSettings.topBias * 255) : 0;
         let data = imageSet[i].contrastMap;
         let dataWidth = imageSet[i].img.width;
-        let weight = Math.abs(data[y * dataWidth + x]) + bottomBias + topBias;
+        let weight = Math.abs(data[y * dataWidth + x]);
         if (weight > maxWeight) {
             maxWeight = weight;
             maxWeightIndex = i;
