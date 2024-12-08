@@ -64,7 +64,6 @@ let anaglyphSettings = {
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
-    stackDepth: 1,
     topBias: 0.0,
     bottomBias: 0.0,
     invertImages: false,
@@ -252,7 +251,7 @@ document.getElementById("premadeMode").addEventListener("mousedown", function (e
 
 function resetAll() {
     stackingData.imageSet.forEach((image) => {
-        image.differenceOfGaussianStack = null;
+        image.differenceOfGaussian = null;
     });
     updateImagesDiv();
     mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
@@ -547,7 +546,7 @@ function handleImages(e) {
                 img: img,
                 imgContainer: null,
                 originalData: null,
-                differenceOfGaussianStack: null,
+                differenceOfGaussian: null,
                 statusText: null});
         }
         enableCompute();
@@ -582,7 +581,7 @@ function removeImage(image) {
 }
 
 function addImage(image) {
-    if (image.originalData !== null && image.differenceOfGaussianStack !== null) {
+    if (image.originalData !== null && image.differenceOfGaussian !== null) {
         return;
     }
     stackingData.imageSet.push(image);
@@ -709,12 +708,10 @@ function pickBestImage(x, y) {
         let weight = [0, 0, 0];
         let bottomBias = (i === 0) ? (stackingSettings.bottomBias * 255) : 0;
         let topBias = (i === imageSet.length - 1) ? (stackingSettings.topBias * 255) : 0;
-        for (let j = 0; j < stackingSettings.stackDepth; j++) {
-            let data = imageSet[i].differenceOfGaussianStack[j].data;
-            let dataWidth = imageSet[i].differenceOfGaussianStack[j].width;
-            for (let k = 0; k < 3; k++) {
-                weight[k] += Math.abs(data[(y * dataWidth + x) * 4 + j]) + bottomBias + topBias;
-            }
+        let data = imageSet[i].differenceOfGaussian.data;
+        let dataWidth = imageSet[i].differenceOfGaussian.width;
+        for (let k = 0; k < 3; k++) {
+            weight[k] += Math.abs(data[(y * dataWidth + x) * 4]) + bottomBias + topBias;
         }
         for (let k = 0; k < 3; k++) {
             if (weight[k] > maxWeight[k]) {
@@ -729,14 +726,10 @@ function pickBestImage(x, y) {
 
 function updateDifferenceOfGaussian(i, after) {
     let imageSet = stackingData.imageSet;
-    if (imageSet[i].differenceOfGaussianStack === null) {
-        imageSet[i].differenceOfGaussianStack = [];
-        for (let j = 0; j < stackingSettings.stackDepth; j++) {
-            let factor = 1 << j;
-            let sA = toStdSize(stackingSettings.sigmaA, imageSet[i].img.width) * factor;
-            let sB = toStdSize(stackingSettings.sigmaB, imageSet[i].img.width) * factor;
-            imageSet[i].differenceOfGaussianStack.push(differenceOfGaussian(imageSet[i].originalData, sA * factor, sB * factor));
-        }
+    if (imageSet[i].differenceOfGaussian === null) {
+        let sA = toStdSize(stackingSettings.sigmaA, imageSet[i].img.width);
+        let sB = toStdSize(stackingSettings.sigmaB, imageSet[i].img.width);
+        imageSet[i].differenceOfGaussian = differenceOfGaussian(imageSet[i].originalData, sA, sB);
     }
     drawStatus("Processed: " + (i + 1) + "/" + imageSet.length);
     if (i === imageSet.length - 1) {
