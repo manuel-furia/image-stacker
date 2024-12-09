@@ -511,7 +511,18 @@ function captureAnimation() {
 function drawAnimationFrame() {
     const duration = 30 / animationSettings.speed;
     const time = animationCaptureStatus.frames.length / duration;
-    drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
+    //drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
+    animationCanvas.width = mainCanvas.width;
+    animationCanvas.height = mainCanvas.height;
+    animationCtx.fillStyle = "black";
+    animationCtx.fillRect(0, 0, animationCtx.canvas.width, animationCtx.canvas.height);
+    let offset = Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0;
+    let dx = offset * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+    let dO = anaglyphSettings.depthOffset;
+    for (let i = 0; i < stackingData.imageSet.length; i++) {
+        let layerDepth = i / stackingData.imageSet.length;
+        animationCtx.drawImage(i == 0 ? stackingData.imageSet[0].img : stackingData.imageSet[i].normalizedContrastCanvas, dx * (layerDepth + dO), 0, animationCtx.canvas.width, animationCtx.canvas.height);
+    }
     animationCaptureStatus.frames.push(animationCtx.getImageData(0, 0, animationCtx.canvas.width, animationCtx.canvas.height));
 }
 
@@ -545,6 +556,8 @@ function handleImages(e) {
                 imgContainer: null,
                 originalData: null,
                 contrastMap: null,
+                maximumContrast: 0,
+                normalizedContrastCanvas: null,
                 statusText: null});
         }
         enableCompute();
@@ -618,10 +631,11 @@ function addImage(image) {
         mainCanvas.height = newHeight;
         let sA = toStdSize(stackingSettings.sigmaA, mainCanvas.width);
         let sB = toStdSize(stackingSettings.sigmaB, mainCanvas.width);
-        let imageData = mainCanvasCtx.createImageData(newWidth, newHeight);
         let contrastData = createContrastMap(image.originalData, sA, sB);
-        fillImageDataFromConstrastMap(imageData, contrastData);
-        mainCanvasCtx.putImageData(imageData, 0, 0);
+        let tempImage = {...image};
+        tempImage.contrastMap = contrastData.resultData;
+        tempImage.maximumContrast = contrastData.maximum;
+        drawNormalizedContrastToAlpha(mainCanvas, tempImage);
     }
     let tempCanvas = new OffscreenCanvas(originalWidth, originalHeight);
     let tempCtx = tempCanvas.getContext("2d");
@@ -632,19 +646,26 @@ function addImage(image) {
     updateImagesDiv();
 }
 
-function fillImageDataFromConstrastMap(imageData, contrastMap) {
+function drawNormalizedContrastToAlpha(destinationCanvas, image) {
+    let destinationCtx = destinationCanvas.getContext("2d");
+    let imageData = destinationCtx.createImageData(image.originalData.width, image.originalData.height);
     let data = imageData.data;
+    let originalData = image.originalData.data;
+    let normalizationFactor = 255 / image.maximumContrast;
+    let contrastMap = image.contrastMap;
     for (let i = 0; i < imageData.height; i++) {
         for (let j = 0; j < imageData.width; j++) {
             let index = (i * imageData.width + j) * 4;
             let contrastIndex = i * imageData.width + j;
             let contrast = contrastMap[contrastIndex];
-            data[index] = contrast;
-            data[index + 1] = contrast;
-            data[index + 2] = contrast;
-            data[index + 3] = 255;
+            let normalizedContrast = (contrast * normalizationFactor) | 0;
+            data[index] = originalData[index];
+            data[index + 1] = originalData[index + 1];
+            data[index + 2] = originalData[index + 2];
+            data[index + 3] = (contrast > 1 && normalizedContrast > 16) ? 255 : 0;
         }
     }
+    destinationCtx.putImageData(imageData, 0, 0);
 }
 
 function updateImagesDiv() {
@@ -682,12 +703,17 @@ function createContrastMap(imageData, s1, s2) {
     let data1 = imageData1.data;
     let data2 = imageData2.data;
     let resultData = new Uint8Array(originalWidth * originalHeight);
+    let maximum = 0;
     for (let i = 0; i < originalHeight; i++) {
         for (let j = 0; j < originalWidth; j++) {
-            resultData[(i * originalWidth + j)] = Math.abs(data1[(i * originalWidth + j) * 4] - data2[(i * originalWidth + j) * 4]);
+            let value = Math.abs(data1[(i * originalWidth + j) * 4] - data2[(i * originalWidth + j) * 4]);
+            resultData[(i * originalWidth + j)] = value;
+            if (value > maximum) {
+                maximum = value;
+            }
         }
     }
-    return resultData;
+    return {resultData, maximum};
 }
 
 function initializeDepths(w, h) {
@@ -729,7 +755,12 @@ function updateContrastMap(i, after) {
     if (imageSet[i].contrastMap === null) {
         let sA = toStdSize(stackingSettings.sigmaA, imageSet[i].img.width);
         let sB = toStdSize(stackingSettings.sigmaB, imageSet[i].img.width);
-        imageSet[i].contrastMap = createContrastMap(imageSet[i].originalData, sA, sB);
+        let contrastData = createContrastMap(imageSet[i].originalData, sA, sB);
+        imageSet[i].contrastMap = contrastData.resultData;
+        imageSet[i].maximumContrast = contrastData.maximum;
+        let normalizedContrastCanvas = new OffscreenCanvas(imageSet[i].img.width, imageSet[i].img.height);
+        drawNormalizedContrastToAlpha(normalizedContrastCanvas, imageSet[i]);
+        imageSet[i].normalizedContrastCanvas = normalizedContrastCanvas;
     }
     drawStatus("Processed: " + (i + 1) + "/" + imageSet.length);
     if (i === imageSet.length - 1) {
