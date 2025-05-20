@@ -56,6 +56,10 @@
                     <input class="settingsValue" type="checkbox" id="useDepthMap">
                     <label for="useDepthMap">Use Pixel by Pixel Depth Map</label>
                 </div>
+                <div>
+                    <label for="alphaThreshold">Soften</label>
+                    <input class="settingsValue" type="range" id="alphaThreshold" min="0.01" max="2.00" value="1.00" step="0.01">
+                </div>
             </div>
         </div>
         <div class="disabledButton buttonContainer centeredBlock" id="compute">Compute</div>

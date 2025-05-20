@@ -151,6 +151,10 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
                 anaglyphSettings.depthGamma = Math.pow(2, clamp(-6.0, 6.0, this.value));
                 refreshDepth();
             });
+            document.getElementById("alphaThreshold").addEventListener("change", function() {
+                stackingSettings.alphaThreshold = Math.pow(16, clamp(0.0, 2.0, this.value));
+                refreshAll();
+            });
             document.getElementById("depthScale").addEventListener("change", function() {
                 anaglyphSettings.depthScale = clamp(0, 200, this.value);
                 refreshEyes();
@@ -195,6 +199,7 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             document.getElementById("animationSpeed").value = animationSettings.speed * 100.0;
             document.getElementById("animationStrength").value = animationSettings.strength;
             document.getElementById("useDepthMap").checked = stackingSettings.useDepthMap;
+            document.getElementById("alphaThreshold").value = Math.log(stackingSettings.alphaThreshold) / Math.log(16);
         },
         disableAll: function() {
             let settings = document.getElementsByClassName("settingsValue");

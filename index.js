@@ -65,6 +65,7 @@ let anaglyphSettings = {
 let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
+    alphaThreshold: 32,
     invertImages: false,
     useDepthMap: false,
 }
@@ -650,8 +651,6 @@ function addImage(image) {
     container.appendChild(text);
     image.statusText = text;
     img.src = image.img.src;
-    let newWidth = originalWidth;
-    let newHeight = newWidth / ratio;
     let imgStyleWidth = 400;
     let imgStyleHeight = imgStyleWidth / ratio;
     img.style.width = imgStyleWidth + "px";
@@ -680,16 +679,19 @@ function drawNormalizedContrastToAlpha(destinationCanvas, image) {
     let originalData = image.originalData.data;
     let normalizationFactor = 255 / image.maximumContrast;
     let contrastMap = image.contrastMap;
+    let threshold = stackingSettings.alphaThreshold;
+    let thresholdFactor = 255 / threshold;
     for (let i = 0; i < imageData.height; i++) {
         for (let j = 0; j < imageData.width; j++) {
             let index = (i * imageData.width + j) * 4;
             let contrastIndex = i * imageData.width + j;
             let contrast = contrastMap[contrastIndex];
             let normalizedContrast = (contrast * normalizationFactor) | 0;
+            let value = Math.min(255, normalizedContrast * thresholdFactor) | 0;
             data[index] = originalData[index];
             data[index + 1] = originalData[index + 1];
             data[index + 2] = originalData[index + 2];
-            data[index + 3] = (contrast > 1 && normalizedContrast > 16) ? 255 : 0;
+            data[index + 3] = (contrast > 1) ? value : 0;
         }
     }
     destinationCtx.putImageData(imageData, 0, 0);
