@@ -170,7 +170,7 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
                 animationSettings.strength = clamp(0, 100, this.value);
             });
             document.getElementById("useDepthMap").addEventListener("change", function() {
-                animationSettings.useDepthMap = this.checked;
+                stackingSettings.useDepthMap = this.checked;
             });
         },
         updateUIValues: function() {
@@ -194,7 +194,7 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             document.getElementById("depthSmooth").value = anaglyphSettings.depthSmooth;
             document.getElementById("animationSpeed").value = animationSettings.speed * 100.0;
             document.getElementById("animationStrength").value = animationSettings.strength;
-            document.getElementById("useDepthMap").checked = animationSettings.useDepthMap;
+            document.getElementById("useDepthMap").checked = stackingSettings.useDepthMap;
         },
         disableAll: function() {
             let settings = document.getElementsByClassName("settingsValue");

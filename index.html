@@ -52,6 +52,10 @@
                     <label for="featureScale">Feature Scale</label>
                     <input class="settingsValue" type="range" id="featureScale" min="0" max="100" value="40">
                 </div>
+                <div>
+                    <input class="settingsValue" type="checkbox" id="useDepthMap">
+                    <label for="useDepthMap">Use Pixel by Pixel Depth Map</label>
+                </div>
             </div>
         </div>
         <div class="disabledButton buttonContainer centeredBlock" id="compute">Compute</div>
@@ -87,7 +91,7 @@
                 </div>
                 <div>
                     <label for="depthOffset">Depth Offset</label>
-                    <input class="settingsValue" type="range" id="depthOffset" min="-100" max="0" value="0">
+                    <input class="settingsValue" type="range" id="depthOffset" min="-100" max="0" value="-50">
                 </div>
             </div>
         </div>
@@ -164,10 +168,6 @@
                 <div>
                     <label for="animationSpeed">Animation Speed</label>
                     <input class="settingsValue" type="range" id="animationSpeed" min="25" max="400" value="100">
-                </div>
-                <div>
-                    <label for="useDepthMap">Use Depth Map</label>
-                    <input class="settingsValue" type="checkbox" id="useDepthMap">
                 </div>
             </div>
         </div>

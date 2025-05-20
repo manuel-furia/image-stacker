@@ -57,7 +57,7 @@ let anaglyphSettings = {
     rightGamma: 0.9,
     depthScale: 45.0,
     depthSmooth: 2.0,
-    depthOffset: -1,
+    depthOffset: -0.5,
     depthGamma: 1.0,
 }
 
@@ -65,12 +65,12 @@ let stackingSettings = {
     sigmaA: 1.0,
     sigmaB: 4.0,
     invertImages: false,
+    useDepthMap: false,
 }
 
 let animationSettings = {
     speed: 1.0,
     strength: 25.0,
-    useDepthMap: false,
 }
 
 let animationCaptureStatus = {
@@ -174,7 +174,7 @@ function handleLoadCustomDepth(e) {
         return;
     }
     loadIntoCanvas(files[0], document.getElementById("depthMap")).then(() => {
-        renormalizeDepthMap(document.getElementById("depthMap").getContext("2d"));
+        normalizeDepthMap(document.getElementById("depthMap").getContext("2d"));
     }).then(() => {
         if (mainCanvas.width !== 0) {
             refreshEyes();
@@ -511,24 +511,32 @@ function captureAnimation() {
     }, 2 * 1000 / animationSettings.speed);
 }
 
+function drawAlphaStack(targetCanvasCtx, offset, depthOffset, n = stackingData.imageSet.length, firstImgReplacement = () => stackingData.imageSet[0].img, allImgs = (i) => stackingData.imageSet[i].normalizedContrastCanvas) {
+    targetCanvasCtx.fillStyle = "black";
+    targetCanvasCtx.fillRect(0, 0, animationCtx.canvas.width, animationCtx.canvas.height);
+    let dx = offset * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+    let dO = depthOffset;
+    for (let i = 0; i < n; i++) {
+        let layerDepth = i / n;
+        targetCanvasCtx.drawImage((firstImgReplacement && i == 0) ? firstImgReplacement() : allImgs(i), dx * (layerDepth + dO), 0, targetCanvasCtx.canvas.width, targetCanvasCtx.canvas.height);
+    }
+}
+
+function shouldUseDepthMap() {
+    return stackingSettings.useDepthMap || stackingData.imageSet.length < 1;
+}
+
 function drawAnimationFrame() {
     const duration = 30 / animationSettings.speed;
     const time = animationCaptureStatus.frames.length / duration;
-    if (animationSettings.useDepthMap || stackingData.imageSet.length < 1) {
+    if (shouldUseDepthMap()) {
         drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
     } else {
         // Use flat alpha masked images
         animationCanvas.width = mainCanvas.width;
         animationCanvas.height = mainCanvas.height;
-        animationCtx.fillStyle = "black";
-        animationCtx.fillRect(0, 0, animationCtx.canvas.width, animationCtx.canvas.height);
         let offset = Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0;
-        let dx = offset * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
-        let dO = anaglyphSettings.depthOffset;
-        for (let i = 0; i < stackingData.imageSet.length; i++) {
-            let layerDepth = i / stackingData.imageSet.length;
-            animationCtx.drawImage(i == 0 ? stackingData.imageSet[0].img : stackingData.imageSet[i].normalizedContrastCanvas, dx * (layerDepth + dO), 0, animationCtx.canvas.width, animationCtx.canvas.height);
-        }
+        drawAlphaStack(animationCtx, offset, anaglyphSettings.depthOffset);
     }
     animationCaptureStatus.frames.push(animationCtx.getImageData(0, 0, animationCtx.canvas.width, animationCtx.canvas.height));
 }
@@ -724,6 +732,9 @@ function createContrastMap(imageData, s1, s2) {
 }
 
 function initializeDepths(w, h) {
+    if (!shouldUseDepthMap()) {
+        return;
+    }
     stackingData.maximumDepth = 0;
     for (let i = 0; i < h; i++) {
         stackingData.fusionDepth[i] = [];
@@ -783,7 +794,7 @@ function isLitteEndian() {
     return new Int16Array(buffer)[0] === 256;
 }
 
-function renormalizeDepthMap(depthMapCtx) {
+function normalizeDepthMap(depthMapCtx) {
     let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
     let depthMap = depthMapData.data;
     let maximumDepth = 0;
@@ -821,30 +832,56 @@ function drawDepthMapAsync() {
     });
 }
 
+function alphaToDepth(i) {
+    let depthLayer = new OffscreenCanvas(mainCanvas.width, mainCanvas.height);
+    let depthLayerCtx = depthLayer.getContext("2d");
+    depthLayerCtx.drawImage(stackingData.imageSet[i].normalizedContrastCanvas, 0, 0, depthLayer.width, depthLayer.height);
+    let imageData = depthLayerCtx.getImageData(0, 0, depthLayer.width, depthLayer.height);
+    let data = imageData.data;
+    let depth = (255 * gammaCorrection(
+        stackingData.imageSet.length <= 1 ? 1 : i / (stackingData.imageSet.length - 1),
+        anaglyphSettings.depthGamma, 1.0)) | 0;
+    for (let j = 0; j < imageData.data.length; j+=4) {
+        data[j] = depth;
+        data[j + 1] = depth;
+        data[j + 2] = depth;
+        data[j + 3] = i == 0 ? 255 : data[j + 3];
+    }
+    imageData.data.set(data);
+    depthLayerCtx.putImageData(imageData, 0, 0);
+    return depthLayer;
+}
+
 function drawDepthMap() {
     let depthMapCanvas = document.getElementById("depthMap");
     let depthMapCtx = depthMapCanvas.getContext("2d");
-    let originalDepthMapCanvas = new OffscreenCanvas(mainCanvas.width, mainCanvas.height);
-    let originalDepthMapCtx = originalDepthMapCanvas.getContext("2d");
     depthMapCanvas.width = mainCanvas.width;
     depthMapCanvas.height = mainCanvas.height;
-    let depthMapData = originalDepthMapCtx.createImageData(mainCanvas.width, mainCanvas.height);
-    let depthMap = depthMapData.data;
-    for (let i = 0; i < depthMapCanvas.height; i++) {
-        for (let j = 0; j < depthMapCanvas.width; j++) {
-            let depth = stackingData.fusionDepth[i][j] / stackingData.maximumDepth;
-            let gammaCorrectedDepth = gammaCorrection(depth, anaglyphSettings.depthGamma, 1.0);
-            for (let k = 0; k < 3; k++) {
-                depthMap[(i * mainCanvas.width + j) * 4 + k] = (gammaCorrectedDepth * 255) | 0;
+    let originalDepthMapCanvas = new OffscreenCanvas(mainCanvas.width, mainCanvas.height);
+    let originalDepthMapCtx = originalDepthMapCanvas.getContext("2d");
+    if (shouldUseDepthMap()) {
+        let depthMapData = originalDepthMapCtx.createImageData(mainCanvas.width, mainCanvas.height);
+        let depthMap = depthMapData.data;
+        for (let i = 0; i < depthMapCanvas.height; i++) {
+            for (let j = 0; j < depthMapCanvas.width; j++) {
+                let depth = stackingData.fusionDepth[i][j] / stackingData.maximumDepth;
+                let gammaCorrectedDepth = gammaCorrection(depth, anaglyphSettings.depthGamma, 1.0);
+                for (let k = 0; k < 3; k++) {
+                    depthMap[(i * mainCanvas.width + j) * 4 + k] = (gammaCorrectedDepth * 255) | 0;
+                }
+                depthMap[(i * mainCanvas.width + j) * 4 + 3] = 255;
             }
-            depthMap[(i * mainCanvas.width + j) * 4 + 3] = 255;
         }
+        originalDepthMapCtx.putImageData(depthMapData, 0, 0);
+    } else {
+        drawAlphaStack(originalDepthMapCtx, 0, anaglyphSettings.depthOffset, stackingData.imageSet.length, null, alphaToDepth);
     }
-    originalDepthMapCtx.putImageData(depthMapData, 0, 0);
     depthMapCtx.clearRect(0, 0, depthMapCanvas.width, depthMapCanvas.height);
     depthMapCtx.filter = "blur(" + (toStdSize(anaglyphSettings.depthSmooth, mainCanvas.width)) + "px)";
     depthMapCtx.drawImage(originalDepthMapCanvas, 0, 0, depthMapCanvas.width, depthMapCanvas.height);
-    renormalizeDepthMap(depthMapCtx);
+    if (shouldUseDepthMap()) {
+        normalizeDepthMap(depthMapCtx);
+    }
     statusData.depthComputed = true;
     document.getElementById("downloadDepth").classList.remove("disabledButton");
 }
@@ -866,11 +903,11 @@ function drawEyesAsync() {
         setTimeout(() => {
             drawLoadingStatus(document.getElementById("leftImage"), mainCanvas.width, mainCanvas.height);
             setTimeout(() => {
-                drawEye(1.0, document.getElementById("leftImage"));
+                drawEye(-1.0, document.getElementById("leftImage"));
                 document.getElementById("downloadStereoLeft").classList.remove("disabledButton");
                 drawLoadingStatus(document.getElementById("rightImage"), mainCanvas.width, mainCanvas.height);
                 setTimeout(() => {
-                    drawEye(-1.0, document.getElementById("rightImage"));
+                    drawEye(1.0, document.getElementById("rightImage"));
                     document.getElementById("downloadStereoRight").classList.remove("disabledButton");
                     statusData.eyesComputed = true;
                     document.getElementById("downloadStereo").classList.remove("disabledButton");
@@ -882,32 +919,36 @@ function drawEyesAsync() {
 }
 
 function drawEye(factor, canvasObject) {
-    let depthMapCanvas = document.getElementById("depthMap");
-    let depthMapCtx = depthMapCanvas.getContext("2d");
-    let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-    let depthData = depthMapData.data;
     let context = canvasObject.getContext("2d");
     canvasObject.width = mainCanvas.width;
     canvasObject.height = mainCanvas.height;
-    let imageData = context.createImageData(mainCanvas.width, mainCanvas.height);
-    let data = imageData.data;
-    let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
-    let dF = factor * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
-    let dO = anaglyphSettings.depthOffset;
-    for (let i = 0; i < canvasObject.height; i++) {
-        for (let j = 0; j < canvasObject.width; j++) {
-            let depth = dF * ((depthData[(i * mainCanvas.width + j) * 4] / 255) + dO);
-            let x = (j + depth) | 0;
-            let y = i;
-            if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
-                for (let k = 0; k < 3; k++) {
-                    data[(i * mainCanvas.width + j) * 4 + k] = originalFusionData.data[(y * mainCanvas.width + x) * 4 + k];
+    if (shouldUseDepthMap()) {
+        let depthMapCanvas = document.getElementById("depthMap");
+        let depthMapCtx = depthMapCanvas.getContext("2d");
+        let depthMapData = depthMapCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+        let depthData = depthMapData.data;
+        let imageData = context.createImageData(mainCanvas.width, mainCanvas.height);
+        let data = imageData.data;
+        let originalFusionData = mainCanvasCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+        let dF = -factor * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+        let dO = anaglyphSettings.depthOffset;
+        for (let i = 0; i < canvasObject.height; i++) {
+            for (let j = 0; j < canvasObject.width; j++) {
+                let depth = dF * ((depthData[(i * mainCanvas.width + j) * 4] / 255) + dO);
+                let x = (j + depth) | 0;
+                let y = i;
+                if (x >= 0 && x < canvasObject.width && y >= 0 && y < canvasObject.height) {
+                    for (let k = 0; k < 3; k++) {
+                        data[(i * mainCanvas.width + j) * 4 + k] = originalFusionData.data[(y * mainCanvas.width + x) * 4 + k];
+                    }
+                    data[(i * mainCanvas.width + j) * 4 + 3] = 255;
                 }
-                data[(i * mainCanvas.width + j) * 4 + 3] = 255;
             }
         }
+        context.putImageData(imageData, 0, 0);
+    } else {
+        drawAlphaStack(context, factor, anaglyphSettings.depthOffset);
     }
-    context.putImageData(imageData, 0, 0);
 }
 
 function gammaCorrection(intensity, gamma, scale=255) {
@@ -967,16 +1008,24 @@ function drawAnaglyph() {
 function drawStacked() {
     return new Promise((resolve, reject) => {
         let imageSet = stackingData.imageSet;
-        if (imageSet.length === 0)
+        if (imageSet.length === 0) {
             return;
+        }  
         mainCanvas.width = imageSet[0].img.width;
         mainCanvas.height = imageSet[0].img.height;
         mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-        initializeDepths(mainCanvas.width, mainCanvas.height);
-        setTimeout(() => updateContrastMap(0, () => {
-            let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
-            setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0), resolve), 0);
-        }), 0);
+        if (shouldUseDepthMap()) {
+            initializeDepths(mainCanvas.width, mainCanvas.height);
+            setTimeout(() => updateContrastMap(0, () => {
+                let imageData = mainCanvasCtx.createImageData(mainCanvas.width, mainCanvas.height);
+                setTimeout(() => drawStackedChunk(imageData, 0, Math.max(1, (mainCanvas.width / 100) | 0), resolve), 0);
+            }), 0);
+        } else {
+            setTimeout(() => updateContrastMap(0, () => {
+                drawAlphaStack(mainCanvasCtx, 0, anaglyphSettings.depthOffset);
+                resolve();
+            }), 0);
+        }
     }).then(() => {
         statusData.stackComputed = true;
         document.getElementById("downloadStacked").classList.remove("disabledButton");
