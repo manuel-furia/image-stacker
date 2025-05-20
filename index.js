@@ -36,6 +36,7 @@ let statusData = {
     depthComputed: false,
     eyesComputed: false,
     anaglyphComputed: false,
+    contrastPreview: null,
     resetAll,
     refreshDepth,
     refreshEyes,
@@ -108,6 +109,7 @@ function clearImages() {
     stackingData.imageSet.length = 0;
     stackingData.fusionDepth.length = 0;
     stackingData.maximumDepth = 0;
+    statusData.contrastPreview = null;
     updateImagesDiv();
     imagesDiv.innerText = "Click here to load images to stack";
     imagesDiv.addEventListener("mousedown", importImagesListener);
@@ -257,6 +259,7 @@ function resetAll() {
     mainCanvasCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
     mainCanvas.width = 0;
     mainCanvas.height = 0;
+    drawContrastPreview();
     if (!statusData.stackComputed) {
         return;
     }
@@ -542,6 +545,7 @@ function drawAnimationFrame() {
 }
 
 function computeAsync() {
+    statusData.contrastPreview = null;
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             drawStacked().then(() => {
@@ -606,6 +610,21 @@ function removeImage(image) {
     }
 }
 
+function drawContrastPreview() {
+    if (statusData.contrastPreview !== null) {
+        let image = statusData.contrastPreview;
+        mainCanvas.width = image.img.width;
+        mainCanvas.height = image.img.height;
+        let sA = toStdSize(stackingSettings.sigmaA, mainCanvas.width);
+        let sB = toStdSize(stackingSettings.sigmaB, mainCanvas.width);
+        let contrastData = createContrastMap(image.originalData, sA, sB);
+        let tempImage = {...image};
+        tempImage.contrastMap = contrastData.resultData;
+        tempImage.maximumContrast = contrastData.maximum;
+        drawNormalizedContrastToAlpha(mainCanvas, tempImage);
+    }
+}
+
 function addImage(image) {
     if (image.originalData !== null && image.contrastMap !== null) {
         return;
@@ -642,15 +661,8 @@ function addImage(image) {
         if (e.target === removeButton) {
             return;
         }
-        mainCanvas.width = newWidth;
-        mainCanvas.height = newHeight;
-        let sA = toStdSize(stackingSettings.sigmaA, mainCanvas.width);
-        let sB = toStdSize(stackingSettings.sigmaB, mainCanvas.width);
-        let contrastData = createContrastMap(image.originalData, sA, sB);
-        let tempImage = {...image};
-        tempImage.contrastMap = contrastData.resultData;
-        tempImage.maximumContrast = contrastData.maximum;
-        drawNormalizedContrastToAlpha(mainCanvas, tempImage);
+        statusData.contrastPreview = image;
+        drawContrastPreview();
     }
     let tempCanvas = new OffscreenCanvas(originalWidth, originalHeight);
     let tempCtx = tempCanvas.getContext("2d");
