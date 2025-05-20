@@ -169,6 +169,9 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             document.getElementById("animationStrength").addEventListener("change", function() {
                 animationSettings.strength = clamp(0, 100, this.value);
             });
+            document.getElementById("useDepthMap").addEventListener("change", function() {
+                animationSettings.useDepthMap = this.checked;
+            });
         },
         updateUIValues: function() {
             document.getElementById("invertImages").checked = stackingSettings.invertImages;
@@ -191,6 +194,7 @@ function SettingHandler(stackingSettings, anaglyphSettings, animationSettings, r
             document.getElementById("depthSmooth").value = anaglyphSettings.depthSmooth;
             document.getElementById("animationSpeed").value = animationSettings.speed * 100.0;
             document.getElementById("animationStrength").value = animationSettings.strength;
+            document.getElementById("useDepthMap").checked = animationSettings.useDepthMap;
         },
         disableAll: function() {
             let settings = document.getElementsByClassName("settingsValue");
