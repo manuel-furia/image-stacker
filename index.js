@@ -70,6 +70,7 @@ let stackingSettings = {
 let animationSettings = {
     speed: 1.0,
     strength: 25.0,
+    useDepthMap: false,
 }
 
 let animationCaptureStatus = {
@@ -244,6 +245,7 @@ document.getElementById("premadeMode").addEventListener("mousedown", function (e
     document.getElementById("loadStack").classList.remove("invisible");
     document.getElementById("loadDepthMap").classList.remove("invisible");
     document.getElementById("loadDepthMap").classList.add("disabledButton");
+    document.getElementById("useDepthMap").disabled = true;
 });
 
 
@@ -342,6 +344,7 @@ function toStdSize(size, imageWidth) {
 function importImagesListener() {
     document.getElementById("premadeMode").style.display = "none";
     document.getElementById("orModeDiv").style.display = "none";
+    document.getElementById("useDepthMap").disabled = false;
     let imageLoader = document.createElement("input");
     imageLoader.type = "file";
     imageLoader.accept = "image/*";
@@ -511,17 +514,21 @@ function captureAnimation() {
 function drawAnimationFrame() {
     const duration = 30 / animationSettings.speed;
     const time = animationCaptureStatus.frames.length / duration;
-    //drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
-    animationCanvas.width = mainCanvas.width;
-    animationCanvas.height = mainCanvas.height;
-    animationCtx.fillStyle = "black";
-    animationCtx.fillRect(0, 0, animationCtx.canvas.width, animationCtx.canvas.height);
-    let offset = Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0;
-    let dx = offset * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
-    let dO = anaglyphSettings.depthOffset;
-    for (let i = 0; i < stackingData.imageSet.length; i++) {
-        let layerDepth = i / stackingData.imageSet.length;
-        animationCtx.drawImage(i == 0 ? stackingData.imageSet[0].img : stackingData.imageSet[i].normalizedContrastCanvas, dx * (layerDepth + dO), 0, animationCtx.canvas.width, animationCtx.canvas.height);
+    if (animationSettings.useDepthMap || stackingData.imageSet.length < 1) {
+        drawEye(Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0, animationCtx.canvas);
+    } else {
+        // Use flat alpha masked images
+        animationCanvas.width = mainCanvas.width;
+        animationCanvas.height = mainCanvas.height;
+        animationCtx.fillStyle = "black";
+        animationCtx.fillRect(0, 0, animationCtx.canvas.width, animationCtx.canvas.height);
+        let offset = Math.sin(time * Math.PI * 2) * animationSettings.strength / 100.0;
+        let dx = offset * toStdSize(anaglyphSettings.depthScale, mainCanvas.width);
+        let dO = anaglyphSettings.depthOffset;
+        for (let i = 0; i < stackingData.imageSet.length; i++) {
+            let layerDepth = i / stackingData.imageSet.length;
+            animationCtx.drawImage(i == 0 ? stackingData.imageSet[0].img : stackingData.imageSet[i].normalizedContrastCanvas, dx * (layerDepth + dO), 0, animationCtx.canvas.width, animationCtx.canvas.height);
+        }
     }
     animationCaptureStatus.frames.push(animationCtx.getImageData(0, 0, animationCtx.canvas.width, animationCtx.canvas.height));
 }
